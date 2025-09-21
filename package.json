@@ -1,21 +1,25 @@
 {
   "name": "jsfitsio",
   "description": "FITS I/O javascript library.",
-  "version": "1.2.0",
+  "version": "1.2.2",
   "keywords": [
     "FITS",
     "FITS I/O",
-    "FITS in a browser"
+    "FITS in a browser",
+    "astronomy",
+    "astrophysics",
+    "science",
+    "data format"
   ],
   "author": "Fabrizio Giordano (fab77)",
-  "license": "MIT",
-  "homepage": "https://github.com/fab77/FITSParser#readme",
+  "license": "GPL-3.0-only",
+  "homepage": "https://github.com/fab77/jsfitsio#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/fab77/FITSParser.git"
+    "url": "git+https://github.com/fab77/jsfitsio.git"
   },
   "bugs": {
-    "url": "https://github.com/fab77/FITSParser/issues",
+    "url": "https://github.com/fab77/jsfitsio/issues",
     "email": "fabriziogiordano77@gmail.com"
   },
   "type": "module",
@@ -23,19 +27,25 @@
     ".": {
       "types": "./lib-esm/index.d.ts",
       "import": "./lib-esm/index.js",
-      "require": "./dist/jsfitsio.js"
+      "require": "./dist/jsfitsio.cjs"
     }
   },
-  "main": "./lib-esm/index.js",
+  "module": "./lib-esm/index.js",
+  "main": "./dist/jsfitsio.cjs",
   "types": "./lib-esm/index.d.ts",
+
+  "unpkg": "dist/jsfitsio.min.js",
+  "jsdelivr": "dist/jsfitsio.min.js",
   "files": [
     "lib-esm/",
     "dist"
   ],
+  "prepublishOnly": "npm run build:prod",
+  "sideEffects": false,
   "scripts": {
     "clean": "shx rm -rf dist lib-esm",
-    "start:dev": "npm run clean && tsc && webpack --mode=development --watch --progress; cp dist/* webtest/",
-    "build:prod": "npm run clean && tsc && webpack --mode=production",
+    "dev": "npm run clean && tsc && webpack --mode=development --watch --progress; cp dist/* webtest/",
+    "prod": "npm run clean && tsc && webpack --mode=production",
     "webtest": "cp dist/* webtest/; node server.cjs",
     "test:esm": "tsc -m es6 test.ts; node test.js",
     "test": "jest",
@@ -43,7 +53,7 @@
     "test:watch": "jest --watch"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.0.0"
   },
   "devDependencies": {
     "@types/jest": "^29.0.0",
@@ -54,12 +64,11 @@
     "ts-loader": "^9.0.0",
     "typescript": "^5.0.0",
     "webpack": "^5.0.0",
-    "webpack-cli": "^5.0.0"
+    "webpack-cli": "^5.0.0",
+    "ts-node": "^10.9.2"
   },
   "dependencies": {
-    "cross-fetch": "^3.1.5",
-    "fs": "^0.0.1-security",
-    "ts-node": "^10.9.2"
+    "cross-fetch": "^3.1.5"
   },
   "browser": {
     "fs": false,

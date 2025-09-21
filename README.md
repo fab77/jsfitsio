@@ -1,6 +1,7 @@
 # jsFITS I/O library
 
-Project available in github at https://github.com/fab77/FITSParser#readme
+Project available in github at https://github.com/fab77/jsfitsio#readme (previously available at https://github.com/fab77/FITSParser#readme). 
+
 
 Library used to handle FITS files as defined in the "Definition of the Flexible Image Transport System (FITS)" document defined by internation Astronomical Union (IAU)
 
@@ -24,7 +25,7 @@ jsFITS I/O can be used as standalone Node module or integrated in the browser.
 Include the following dependency into package.json file in your project:
 ```
 "dependencies": {
-        "jsfitsio": "^1.1.14"
+        "jsfitsio": "^1.2.1"
     },
 ```
 
@@ -41,7 +42,7 @@ Download the file "jfitsio.js" under _bundle directory and include it in your we
 
 - Clone repo:
 ```
-git clone https://github.com/fab77/FITSParser.git
+git clone https://github.com/fab77/jsfitsio.git
 ```
 
 - Move into the FITSParser folder:
