@@ -215,17 +215,14 @@ export class FITSWriter {
     return dataBytes;
   }
 
-  static typedArrayToURL(fitsParsed: FITSParsed): string {
-    const fitsFile = this.createFITS(fitsParsed);
-    const blob = new Blob([fitsFile], { type: "application/fits" });
-    // console.log(`<html><body><img src='${URL.createObjectURL(b)}'</body></html>`);
-    const url = URL.createObjectURL(blob);
-    console.log(`Generated FITS file URL: ${url}`);
-    const revokeTimeout_sec = 10
-    setTimeout(() => url, revokeTimeout_sec * 1000);
-    console.log(`Generated FITS will be available for ${revokeTimeout_sec} seconds: ${url}`);
-    return url;
-  }
+  // static typedArrayToURL(fitsParsed: FITSParsed): string {
+  //   const fitsFile = FITSWriter.createFITS(fitsParsed) as Uint8Array;
+  //   const blob = new Blob([fitsFile], { type: "application/fits" });
+  //   // console.log(`<html><body><img src='${URL.createObjectURL(b)}'</body></html>`);
+  //   const url = URL.createObjectURL(blob);
+  //   console.log(`Generated FITS file URL: ${url}`);
+  //   return url;
+  // }
 
   static writeFITSFile(fitsParsed: FITSParsed, filePath: string): void {
     const fitsFile = this.createFITS(fitsParsed);

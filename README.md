@@ -160,3 +160,9 @@ This project is licensed under the GPL License - see the [LICENSE.md](LICENSE.md
 
 ## Acknowledgments
 * Yago Ascasibar
+
+
+Licence
+---------
+This project is licensed under the GNU General Public License v3.0 (GPL-3.0).
+See the LICENSE file for details.

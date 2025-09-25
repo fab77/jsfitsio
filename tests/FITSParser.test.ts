@@ -1,9 +1,9 @@
 import { describe, expect, test, jest } from '@jest/globals';
 import { FITSParser } from "../src/FITSParser";
 import { FITSParsed } from "../src/model/FITSParsed";
-import { FITSHeader } from "../src/model/FITSHeader";
 import { FITSHeaderManager } from '../src/model/FITSHeaderManager';
 import { header, data } from "./inputs/Npix47180"
+import { FITSWriter } from '../src/FITSWriter';
 
 test('[parse_hips__fits_1] Parse FITS from URL', async () => {
   const url = "http://skies.esac.esa.int/Herschel/normalized/PACS_hips160//Norder8/Dir40000/Npix47180.fits";
@@ -82,36 +82,16 @@ test('[parse_mercator_fits_1] Parse FITS from filesystem', async () => {
 
 }, 15000);
 
+// test('[parse_hips_fits] Generate web data', async () => {
+//   const path = "./tests/resources/Npix47180.fits";
+//   const parsedFITS = await FITSParser.loadFITS(path);
+
+//   expect(parsedFITS).not.toBeNull();
+
+//   const data = FITSWriter.typedArrayToURL(parsedFITS!);
+//   console.log(data)
+//   expect(data).not.toBeNull();
+
+// }, 15000);
 
 
-// jest.mock('../src/ParseHeader.js', () => ({
-//   ParseHeader: {
-//     parse: jest.fn(() => ({ items: [] })),
-//     getFITSItemValue: jest.fn((header: FITSHeaderManager, key: string) => {
-//       const defaults: Record<string, string | number> = { SIMPLE: 'T', BITPIX: 64, NAXIS: 2, NAXIS1: 512, NAXIS2: 512 };
-//       return defaults[key] ?? null;
-//     })
-//   }
-// }));
-// jest.mock('../src/ParsePayload.js', () => ({
-//   ParsePayload: {
-//     computePhysicalMinAndMax: jest.fn((header, data) => header)
-//   }
-// }));
-
-// describe("FITSParser", () => {
-
-//   it("should return null if fetch fails", async () => {
-//     const fits = await FITSParser.loadFITS("http://invalid-url");
-//     expect(fits).toBeNull();
-//   });
-
-//   it("should parse and return a FITSParsed object", async () => {
-//     const result = await FITSParser.loadFITS("http://skies.esac.esa.int/Herschel/normalized/PACS_hips160//Norder8/Dir40000/Npix47180.fits");
-//     expect(result).not.toBeNull();
-//     expect(result).toHaveProperty("header");
-//     expect(result).toHaveProperty("data");
-//     expect(result!.data.length).toBeGreaterThan(0);
-//   });
-
-// });

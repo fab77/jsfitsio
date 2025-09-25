@@ -7,13 +7,18 @@ import { FITSParsed } from "./model/FITSParsed.js";
 import { FITSHeaderManager } from "./model/FITSHeaderManager.js";
 
 export class FITSParser {
-  
+
   static async loadFITS(url: string): Promise<FITSParsed | null> {
-    const uint8data = await FITSParser.getFile(url)
-    if (uint8data?.byteLength) {
-      const fits = FITSParser.processFits(uint8data);
-      return fits;
+    try {
+      const uint8data = await FITSParser.getFile(url)
+      if (uint8data?.byteLength) {
+        const fits = FITSParser.processFits(uint8data);
+        return fits;
+      }
+    } catch (error) {
+      console.error("Error loading FITS file:", error);
     }
+
     return null;
   }
 
@@ -27,17 +32,32 @@ export class FITSParser {
       return null
     }
 
-    const dataOffset = 2880; // Assuming no additional header blocks
+    // Assuming no additional header blocks
+    const dataOffset = 2880;
     const payloadBuffer = new Uint8Array(rawdata.slice(dataOffset));
-    const payloadMatrix = FITSParser.createMatrix(payloadBuffer, header)
+
+    // --- pad payload to multiple of 2880 ---
+    const paddedPayload = padTo2880(payloadBuffer);
+
+    const payloadMatrix = FITSParser.createMatrix(paddedPayload, header)
 
     return {
       header: headerFinalised,
       data: payloadMatrix
     };
+
+    // helper
+    function padTo2880(buf: Uint8Array): Uint8Array {
+      const remainder = buf.length % 2880;
+      if (remainder === 0) return buf;
+      const padded = new Uint8Array(buf.length + (2880 - remainder));
+      padded.set(buf);
+      // the extra bytes are left as 0 (valid FITS padding)
+      return padded;
+    }
   }
 
-  
+
 
   private static createMatrix(payload: Uint8Array, header: FITSHeaderManager): Array<Uint8Array> {
 
@@ -56,9 +76,9 @@ export class FITSParser {
 
     const bytesXelem = Math.abs(BITPIX / 8);
 
-    if (payload.length !== NAXIS1 * NAXIS2 * bytesXelem) {
-      throw new Error("Payload size does not match the expected matrix dimensions.");
-    }
+    // if (payload.length !== NAXIS1 * NAXIS2 * bytesXelem) {
+    //   throw new Error("Payload size does not match the expected matrix dimensions.");
+    // }
 
     // const matrix: Array<Uint8Array> = [];
     const matrix = [];
@@ -71,9 +91,9 @@ export class FITSParser {
 
 
 
-  static generateFITSForWeb(fitsParsed: FITSParsed) {
-    return FITSWriter.typedArrayToURL(fitsParsed)
-  }
+  // static generateFITSForWeb(fitsParsed: FITSParsed) {
+  //   return FITSWriter.typedArrayToURL(fitsParsed)
+  // }
 
   static saveFITSLocally(fitsParsed: FITSParsed, path: string) {
     return FITSWriter.writeFITSFile(fitsParsed, path)
@@ -85,7 +105,7 @@ export class FITSParser {
 
       const p = await import('./getLocalFile.js')
       const rawData = await p.getLocalFile(uri);
-      if (rawData?.length){
+      if (rawData?.length) {
         const uint8 = new Uint8Array(rawData);
         return uint8
       }

@@ -1,7 +1,7 @@
 {
   "name": "jsfitsio",
   "description": "FITS I/O javascript library.",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "keywords": [
     "FITS",
     "FITS I/O",
@@ -49,7 +49,7 @@
     "webtest": "cp dist/* webtest/; node server.cjs",
     "test:esm": "tsc -m es6 test.ts; node test.js",
     "test": "jest",
-    "test2": "node --experimental-vm-modules node_modules/.bin/jest",
+    "jest": "node --experimental-vm-modules node_modules/.bin/jest",
     "test:watch": "jest --watch"
   },
   "engines": {
