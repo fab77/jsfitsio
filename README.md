@@ -2,6 +2,17 @@
 
 Project available in github at https://github.com/fab77/jsfitsio#readme (previously available at https://github.com/fab77/FITSParser#readme). 
 
+## Licensing
+
+jsfitsio is distributed under a dual-license model:
+
+- a commercial license for proprietary or revenue-generating use
+- a separate non-commercial, source-available license for personal, academic,
+  research, evaluation, or other non-commercial use
+
+The non-commercial option is not an OSI open source license. See
+`LICENSE.md`, `LICENSE-COMMERCIAL.md`, and `LICENSE-NONCOMMERCIAL.md`.
+
 
 Library used to handle FITS files as defined in the "Definition of the Flexible Image Transport System (FITS)" document defined by internation Astronomical Union (IAU)
 
@@ -154,15 +165,5 @@ webpack: 5.74.0
 ## Authors
 * **Fabrizio Giordano**
 
-## License
-
-This project is licensed under the GPL License - see the [LICENSE.md](LICENSE.md) file for details
-
 ## Acknowledgments
 * Yago Ascasibar
-
-
-Licence
----------
-This project is licensed under the GNU General Public License v3.0 (GPL-3.0).
-See the LICENSE file for details.
