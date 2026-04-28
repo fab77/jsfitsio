@@ -1,16 +1,23 @@
-/*
- * This file is part of MyProject.
- *
- * MyProject is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * MyProject is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with MyProject.  If not, see <https://www.gnu.org/licenses/>.
- */
+jsfitsio
+Copyright (C) Fabrizio Giordano
+
+This repository uses a dual-license model.
+
+Choose the license track that matches your use case:
+
+1. Commercial use
+
+Commercial, proprietary, internal business, SaaS, paid-service, OEM, or other
+revenue-generating use requires a separate commercial license agreement from
+the copyright holder. See `LICENSE-COMMERCIAL.md`.
+
+2. Non-commercial use
+
+Personal study, academic work, research, evaluation, hobby, and other
+non-commercial use may be carried out under the source-available terms
+described in `LICENSE-NONCOMMERCIAL.md`.
+
+The non-commercial license track is not an OSI-approved open source license.
+
+If your intended use is commercial or if there is any uncertainty, use the
+commercial licensing track.
