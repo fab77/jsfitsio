@@ -1,7 +1,7 @@
 {
   "name": "jsfitsio",
   "description": "FITS I/O javascript library.",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "keywords": [
     "FITS",
     "FITS I/O",
@@ -33,7 +33,6 @@
   "module": "./lib-esm/index.js",
   "main": "./dist/jsfitsio.cjs",
   "types": "./lib-esm/index.d.ts",
-
   "unpkg": "dist/jsfitsio.min.js",
   "jsdelivr": "dist/jsfitsio.min.js",
   "files": [
