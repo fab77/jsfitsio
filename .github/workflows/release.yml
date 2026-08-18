@@ -11,29 +11,34 @@ permissions:
 
 jobs:
   publish:
-    name: Publish to npmjs
+    name: Publish to npm
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: 22
-          cache: npm
-          registry-url: https://registry.npmjs.org/
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Verify tag matches package version
+      - name: Check tag matches package version
+        shell: bash
         run: |
           PACKAGE_VERSION=$(node -p "require('./package.json').version")
-          TAG_VERSION=${GITHUB_REF_NAME#v}
-          if [ "$PACKAGE_VERSION" != "$TAG_VERSION" ]; then
-            echo "Tag v$TAG_VERSION does not match package.json version $PACKAGE_VERSION"
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+
+          echo "package.json version: ${PACKAGE_VERSION}"
+          echo "Git tag version:      ${TAG_VERSION}"
+
+          if [ "${PACKAGE_VERSION}" != "${TAG_VERSION}" ]; then
+            echo "::error::Git tag v${TAG_VERSION} does not match package.json version ${PACKAGE_VERSION}"
             exit 1
           fi
 
@@ -43,15 +48,8 @@ jobs:
       - name: Build production files
         run: npm run prod
 
-      - name: Check npm package contents
+      - name: Inspect package contents
         run: npm pack --dry-run
 
-      - name: Verify npm authentication
-        run: npm whoami
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Publish to npmjs
-        run: npm publish --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish to npm
+        run: npm publish

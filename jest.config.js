@@ -1,13 +1,23 @@
 export default {
-  preset: 'ts-jest/presets/default-esm', // Use if you are using native ES modules
+  preset: 'ts-jest/presets/default-esm',
   testEnvironment: 'node',
+
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {
-      useESM: true,  // Ensure ts-jest compiles using ESModules
+      useESM: true,
     }],
   },
+
   moduleNameMapper: {
-    '^(\\.{1,2}/.*)\\.js$': '$1', // fix for ESM import paths
+    '^(\\.{1,2}/.*)\\.js$': '$1',
   },
+
   extensionsToTreatAsEsm: ['.ts'],
+
+  // Remote tests depend on external services and are intentionally
+  // excluded from the standard deterministic test suite.
+  testPathIgnorePatterns: [
+    '/node_modules/',
+    '/tests/remote/',
+  ],
 };
