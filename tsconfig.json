@@ -1,20 +1,3 @@
-// {
-//   "compilerOptions": {
-//     "target": "ES6",
-//     "module": "NodeNext",
-//     "outDir": "lib-esm",
-//     "strict": true,
-//     "moduleResolution": "nodenext",
-//     "esModuleInterop": true,
-//     "sourceMap": true,
-//     "declaration": true,
-//     "declarationMap": true
-//   },
-//   "include": [
-//     "src/**/*"
-//   ]
-// }
-
 {
   "compilerOptions": {
     
@@ -23,7 +6,9 @@
     "target": "ES2022",  // Modern browsers support all ES6 features, so ES6 is a good choice. 
     "esModuleInterop": true,
     
-    "lib": ["es6", "dom"],
+    // "lib": ["es6", "dom"],
+    "lib": ["ES2022", "DOM"],
+    "rootDir": "src",
     "outDir": "lib-esm",
     "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
