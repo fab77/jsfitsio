@@ -1,7 +1,7 @@
 {
   "name": "jsfitsio",
   "description": "FITS I/O javascript library.",
-  "version": "2.1.0-snapshot",
+  "version": "2.1.1",
   "keywords": [
     "FITS",
     "FITS I/O",
@@ -12,7 +12,7 @@
     "data format"
   ],
   "author": "Fabrizio Giordano (fab77)",
-  "license": "SEE LICENSE IN LICENSE.md",
+  "license": "Apache-2.0",
   "homepage": "https://github.com/fab77/jsfitsio#readme",
   "repository": {
     "type": "git",
@@ -37,9 +37,12 @@
   "jsdelivr": "dist/jsfitsio.min.js",
   "files": [
     "lib-esm/",
-    "dist"
+    "dist/",
+    "src/",
+    "README.md",
+    "LICENSE.md"
   ],
-  "prepublishOnly": "npm run build:prod",
+  "prepublishOnly": "npm run prod",
   "sideEffects": false,
   "scripts": {
     "clean": "shx rm -rf dist lib-esm",

@@ -1,169 +1,145 @@
-# jsFITS I/O library
+# jsfitsio
 
-Project available in github at https://github.com/fab77/jsfitsio#readme (previously available at https://github.com/fab77/FITSParser#readme). 
+FITS I/O library for JavaScript and TypeScript.
 
-## Licensing
+`jsfitsio` reads and writes FITS image data in Node.js and browser-oriented
+scientific web applications. It is designed as a lightweight building block for
+astronomy, astrophysics and scientific data visualisation workflows.
 
-jsfitsio is distributed under a dual-license model:
+The project is available on GitHub:
 
-- a commercial license for proprietary or revenue-generating use
-- a separate non-commercial, source-available license for personal, academic,
-  research, evaluation, or other non-commercial use
+https://github.com/fab77/jsfitsio
 
-The non-commercial option is not an OSI open source license. See
-`LICENSE.md`, `LICENSE-COMMERCIAL.md`, and `LICENSE-NONCOMMERCIAL.md`.
+## Features
 
+- Read FITS files from remote URLs.
+- Read FITS files from the local filesystem in Node.js.
+- Parse FITS headers into a `FITSHeaderManager`.
+- Return image data as arrays of `Uint8Array` rows.
+- Write parsed FITS data back to local FITS files in Node.js.
+- Provide ESM, CommonJS and browser bundle outputs.
 
-Library used to handle FITS files as defined in the "Definition of the Flexible Image Transport System (FITS)" document defined by internation Astronomical Union (IAU)
+## Current scope
 
-This library is capable to read and write FITS files where the data are represented in the following formats (BITPIX):
+`jsfitsio` currently focuses on image HDUs.
 
+Supported `BITPIX` values follow the FITS standard:
 
-- 8 Character or unsigned binary integer
-- 16 16-bit two’s complement binary integer
-- 32 32-bit two’s complement binary integer
-- 64 64-bit two’s complement binary integer
-- −32 IEEE single-precision floating point
-- −64 IEEE double-precision floating point
+- `8`: character or unsigned binary integer
+- `16`: 16-bit two's-complement binary integer
+- `32`: 32-bit two's-complement binary integer
+- `64`: 64-bit two's-complement binary integer
+- `-32`: IEEE single-precision floating point
+- `-64`: IEEE double-precision floating point
 
+## Installation
 
-Only ImageHDU are supported at the moment. 
-
-jsFITS I/O can be used as standalone Node module or integrated in the browser. 
-
-
-## How to use the generated library available in Nodejs repository
-Include the following dependency into package.json file in your project:
-```
-"dependencies": {
-        "jsfitsio": "^1.2.1"
-    },
+```bash
+npm install jsfitsio
 ```
 
-## Installing as Javascript external file in a web page
+The package currently targets Node.js `>=22.0.0`.
 
-Download the file "jfitsio.js" under _bundle directory and include it in your web page.
+## Usage
 
+### Read a FITS file from a URL
 
-## Deployment as Node module
+```ts
+import { FITSParser } from "jsfitsio";
 
-- Prerequisites:
-  [Node.js](https://nodejs.org) v<=16
-  (see [installation instructions](https://nodejs.org/en/download/package-manager))
+const url =
+  "http://skies.esac.esa.int/Herschel/normalized/PACS_hips160//Norder8/Dir40000/Npix47180.fits";
 
-- Clone repo:
-```
-git clone https://github.com/fab77/jsfitsio.git
-```
+const fits = await FITSParser.loadFITS(url);
 
-- Move into the FITSParser folder:
-```
-cd FITSParser
-```
-
-- Install the required `dev` modules:
-```
-npm i
-```
-
-- Compile the project:
-```
-npm run build:prod
+if (fits !== null) {
+  console.log(fits.header.getItems());
+  console.log(`BITPIX: ${fits.header.findById("BITPIX")?.value}`);
+  console.log(`NAXIS1: ${fits.header.findById("NAXIS1")?.value}`);
+  console.log(`NAXIS2: ${fits.header.findById("NAXIS2")?.value}`);
+  console.log(`Rows: ${fits.data.length}`);
+} else {
+  console.log("No FITS data loaded.");
+}
 ```
 
-### reading FITS file available in the web:
-```
-import { FITSParser } from 'jsfitio';
+### Read and write a local FITS file in Node.js
 
-const fileuri = "http://skies.esac.esa.int/Herschel/normalized/PACS_hips160//Norder8/Dir40000/Npix47180.fits";
-const fp = new FITSParser(fileuri);
-const promise = fp.loadFITS();
-promise.then(function (fits) {
-    if (fits !== null) {
-        console.log(fits === null || fits === void 0 ? void 0 : fits.header);
+```ts
+import { FITSParser } from "jsfitsio";
 
-        console.log(`BITPIX: ${fits.header.get('BITPIX')}`);
-        console.log(`NAXIS1: ${fits.header.get('NAXIS1')}`);
-        console.log(`NAXIS2: ${fits.header.get('NAXIS2')}`);
-        console.log(`payload bytes length ${fits.data.length * fits.data[0].length}`);
+const inputPath = "./tests/resources/Mercator46.fits";
+const outputPath = "./output.fits";
 
-    }
-    else {
-        console.log("Empty data");
-    }
-});
+const fits = await FITSParser.loadFITS(inputPath);
+
+if (fits !== null) {
+  FITSParser.saveFITSLocally(fits, outputPath);
+}
 ```
 
+### Browser bundle
 
+The package also provides browser bundle outputs through `dist/`.
 
-### using FITS available in the local filesystem:
-```
-import { FITSParser } from 'jsfitio';
-import { FITSHeader } from 'jsfitio';
-import { FITSWriter } from 'jsfitio';
-import { writeFITS } from 'jsfitio'
-import { FITSHeaderItem } from 'jsfitio';
+When loaded as a script, the UMD bundle exposes the `jsfitsio` global.
 
-const fileuri: string = "./test/inputs/x0c70103t_c1f.fits";
-const fp = new FITSParser(fileuri);
-const fitsPromise = fp.loadFITS();
-fitsPromise.then( (fitsProcessed) => {
-    let fitsHeader = fitsProcessed.header;
-    let fitsData = fitsProcessed.data;
-    let fw = new FITSWriter();
-    fw.run(fits.header, fits.data);
-    writeFITS("./MyFITS.fits", fw._fitsData);
-});
-```
-
-
-## Deployment as a Javascript library
-
-You need to include "jsfitsio.js" (take it from _bundles directory in git the repo https://github.com/fab77/FITSParser ) file in your HTML page. Below a sample.
-
-```
+```html
 <!doctype html>
 <html>
-
-<head>
+  <head>
     <meta charset="utf-8" />
-    <title>Webpack App</title>
-    <base href="."/>
-</head>
-
-<body>
-    <h1>Hello world!</h1>
-    <h2>jsFITS I/O web integration sample</h2>
+    <title>jsfitsio browser example</title>
+  </head>
+  <body>
     <script src="./jsfitsio.js"></script>
     <script>
-        let fitsURL = "http://skies.esac.esa.int/Herschel/normalized/PACS_hips160//Norder8/Dir40000/Npix47180.fits"
-        let fp = new jsfitsio.FITSParser(fitsURL);
-        let promise = fp.loadFITS();
-        promise.then( (fits) => {
-            if (fits !== null) {
-                console.log(fits?.header);
-                const blobUrl = jsfitsio.FITSParser.generateFITS(fits.header, fits.data);
-                console.log(blobUrl);
-            } else {
-                console.log("Empty data");
-            }
-        });
-    </script>
-</body>
+      const url =
+        "http://skies.esac.esa.int/Herschel/normalized/PACS_hips160//Norder8/Dir40000/Npix47180.fits";
 
+      jsfitsio.FITSParser.loadFITS(url).then((fits) => {
+        if (fits !== null) {
+          console.log(fits.header.getItems());
+          console.log(fits.data.length);
+        }
+      });
+    </script>
+  </body>
 </html>
 ```
 
-## Built With
-Node: v16.17.0
-webpack: 5.74.0
+## Build
 
-## Contributing
+Install dependencies:
 
-## Versioning
+```bash
+npm install
+```
 
-## Authors
-* **Fabrizio Giordano**
+Run tests:
 
-## Acknowledgments
-* Yago Ascasibar
+```bash
+npm test
+```
+
+Build production outputs:
+
+```bash
+npm run prod
+```
+
+The build generates:
+
+- `lib-esm/` for ESM output and TypeScript declarations
+- `dist/jsfitsio.cjs` for CommonJS
+- `dist/jsfitsio.js` and `dist/jsfitsio.min.js` for browser usage
+
+## License
+
+`jsfitsio` is licensed under the Apache License, Version 2.0.
+
+See `LICENSE.md`.
+
+## Author
+
+Fabrizio Giordano
