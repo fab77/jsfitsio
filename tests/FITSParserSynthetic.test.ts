@@ -1,15 +1,6 @@
-import {
-  afterEach,
-  describe,
-  expect,
-  test,
-} from "@jest/globals";
+import { afterEach, describe, expect, test } from "@jest/globals";
 
-import {
-  mkdtemp,
-  rm,
-  writeFile,
-} from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -17,25 +8,16 @@ import { join } from "node:path";
 import { FITSParser } from "../src/FITSParser";
 import { FITSHeaderManager } from "../src/model/FITSHeaderManager";
 
-import {
-  createSyntheticFits,
-} from "./helpers/synthetic-fits";
+import { createSyntheticFits } from "./helpers/synthetic-fits";
 
 let temporaryDirectories: string[] = [];
 
-async function writeTemporaryFits(
-  fits: Uint8Array,
-): Promise<string> {
-  const directory = await mkdtemp(
-    join(tmpdir(), "jsfitsio-test-"),
-  );
+async function writeTemporaryFits(fits: Uint8Array): Promise<string> {
+  const directory = await mkdtemp(join(tmpdir(), "jsfitsio-test-"));
 
   temporaryDirectories.push(directory);
 
-  const path = join(
-    directory,
-    "synthetic.fits",
-  );
+  const path = join(directory, "synthetic.fits");
 
   await writeFile(path, fits);
 
@@ -63,19 +45,14 @@ describe("FITSParser synthetic FITS", () => {
       pixels: [-10, 20],
     });
 
-    const path = await writeTemporaryFits(
-      fits,
-    );
+    const path = await writeTemporaryFits(fits);
 
-    const parsed =
-      await FITSParser.loadFITS(path);
+    const parsed = await FITSParser.loadFITS(path);
 
     expect(parsed).not.toBeNull();
 
     if (!parsed) {
-      throw new Error(
-        "FITS parser unexpectedly returned null",
-      );
+      throw new Error("FITS parser unexpectedly returned null");
     }
 
     /*
@@ -95,14 +72,7 @@ describe("FITSParser synthetic FITS", () => {
      *
      * FITS is big-endian.
      */
-    expect(
-      Array.from(parsed.data[0]),
-    ).toEqual([
-      0xff,
-      0xf6,
-      0x00,
-      0x14,
-    ]);
+    expect(Array.from(parsed.data[0])).toEqual([0xff, 0xf6, 0x00, 0x14]);
   });
 
   test("computes correct DATAMIN and DATAMAX", async () => {
@@ -114,31 +84,62 @@ describe("FITSParser synthetic FITS", () => {
       pixels: [-10, 20],
     });
 
-    const path = await writeTemporaryFits(
-      fits,
-    );
+    const path = await writeTemporaryFits(fits);
 
-    const parsed =
-      await FITSParser.loadFITS(path);
+    const parsed = await FITSParser.loadFITS(path);
 
     expect(parsed).not.toBeNull();
 
     if (!parsed) {
-      throw new Error(
-        "FITS parser unexpectedly returned null",
-      );
+      throw new Error("FITS parser unexpectedly returned null");
     }
 
-    expect(
-      parsed.header.findById(
-        FITSHeaderManager.DATAMIN,
-      )?.value,
-    ).toBe(-10);
+    expect(parsed.header.findById(FITSHeaderManager.DATAMIN)?.value).toBe(-10);
 
-    expect(
-      parsed.header.findById(
-        FITSHeaderManager.DATAMAX,
-      )?.value,
-    ).toBe(20);
+    expect(parsed.header.findById(FITSHeaderManager.DATAMAX)?.value).toBe(20);
+  });
+
+  test("loads a FITS file using the new FITSFile model", async () => {
+    const fits = createSyntheticFits({
+      bitpix: 16,
+      naxis1: 2,
+      naxis2: 1,
+      headerBlocks: 2,
+      pixels: [-10, 20],
+    });
+
+    const path = await writeTemporaryFits(fits);
+
+    const fitsFile = await FITSParser.loadFITSFile(path);
+
+    expect(fitsFile).not.toBeNull();
+
+    if (!fitsFile) {
+      throw new Error("FITS file unexpectedly null");
+    }
+
+    expect(fitsFile.length).toBe(1);
+
+    const primary = fitsFile.primaryHDU;
+
+    expect(primary).not.toBeNull();
+
+    if (!primary) {
+      throw new Error("Primary HDU unexpectedly null");
+    }
+
+    expect(primary.type).toBe("PRIMARY");
+
+    expect(primary.dataOffset).toBe(5760);
+
+    expect(primary.dataByteLength).toBe(4);
+
+    expect(Array.from(primary.rawData ?? [])).toEqual([0xff, 0xf6, 0x00, 0x14]);
+  });
+
+  test("loadFITSFile returns null when local file does not exist", async () => {
+    const fitsFile = await FITSParser.loadFITSFile("./notexistent.fits");
+
+    expect(fitsFile).toBeNull();
   });
 });

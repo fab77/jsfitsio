@@ -4,25 +4,82 @@ import { ParseHeader } from "./ParseHeader.js";
 // import { FITSHeader } from "./model/FITSHeader.js";
 import { FITSParsed } from "./model/FITSParsed.js";
 import { FITSHeaderManager } from "./model/FITSHeaderManager.js";
+import { FITSFile } from "./model/FITSFile.js";
+import { PrimaryHDU } from "./model/PrimaryHDU.js";
 
 export class FITSParser {
-  static async loadFITS(url: string): Promise<FITSParsed | null> {
-    try {
-      const uint8data = await FITSParser.getFile(url);
-      if (uint8data?.byteLength) {
-        const fits = FITSParser.processFits(uint8data);
-        return fits;
-      }
-    } catch (error) {
-      console.error("Error loading FITS file:", error);
+  static async loadFITS(path: string): Promise<FITSParsed | null> {
+    const fitsFile = await FITSParser.loadFITSFile(path);
+
+    if (fitsFile === null) {
+      return null;
     }
 
-    return null;
+    const primary = fitsFile.primaryHDU;
+
+    if (primary === null || primary.rawData === null) {
+      return null;
+    }
+
+    return {
+      header: primary.header,
+
+      data: FITSParser.createMatrix(primary.rawData, primary.header),
+    };
   }
 
-  private static processFits(
-    rawData: Uint8Array
-  ): FITSParsed | null {
+  static async loadFITSFile(path: string): Promise<FITSFile | null> {
+    const rawData = await FITSParser.getFile(path);
+
+    if (rawData.byteLength === 0) {
+      return null;
+    }
+
+    return FITSParser.processFITSFile(rawData);
+  }
+
+  private static processFITSFile(rawData: Uint8Array): FITSFile {
+    const header = ParseHeader.parse(rawData);
+
+    const dataOffset = ParseHeader.getHeaderByteLength(rawData);
+
+    const dataByteLength = FITSParser.getImagePayloadByteLength(header);
+
+    if (dataOffset + dataByteLength > rawData.byteLength) {
+      throw new Error(
+        `Invalid FITS file: expected ` +
+          `${dataByteLength} payload bytes ` +
+          `at offset ${dataOffset}, but file ` +
+          `contains only ` +
+          `${rawData.byteLength - dataOffset}.`,
+      );
+    }
+
+    const rawPayload = rawData.subarray(
+      dataOffset,
+      dataOffset + dataByteLength,
+    );
+
+    const finalHeader = ParsePayload.computePhysicalMinAndMax(
+      header,
+      rawPayload,
+    );
+
+    if (finalHeader === null) {
+      throw new Error("Unable to parse FITS primary HDU.");
+    }
+
+    const primary = new PrimaryHDU(
+      finalHeader,
+      rawPayload,
+      dataOffset,
+      dataByteLength,
+    );
+
+    return new FITSFile([primary]);
+  }
+
+  private static processFits(rawData: Uint8Array): FITSParsed | null {
     const header = ParseHeader.parse(rawData);
 
     const dataOffset = ParseHeader.getHeaderByteLength(rawData);
@@ -39,11 +96,7 @@ export class FITSParser {
 
     const payload = rawData.subarray(dataOffset, dataOffset + payloadLength);
 
-    const finalHeader =
-      ParsePayload.computePhysicalMinAndMax(
-        header,
-        payload
-      );
+    const finalHeader = ParsePayload.computePhysicalMinAndMax(header, payload);
 
     if (finalHeader === null) {
       return null;
@@ -55,22 +108,20 @@ export class FITSParser {
     };
   }
 
-  private static getImagePayloadByteLength(
-    header: FITSHeaderManager
-  ): number {
+  private static getImagePayloadByteLength(header: FITSHeaderManager): number {
     const bitpix = ParseHeader.getFITSItemValue(
       header,
-      FITSHeaderManager.BITPIX
+      FITSHeaderManager.BITPIX,
     );
 
     const naxis1 = ParseHeader.getFITSItemValue(
       header,
-      FITSHeaderManager.NAXIS1
+      FITSHeaderManager.NAXIS1,
     );
 
     const naxis2 = ParseHeader.getFITSItemValue(
       header,
-      FITSHeaderManager.NAXIS2
+      FITSHeaderManager.NAXIS2,
     );
 
     if (bitpix === null) {

@@ -7,3 +7,9 @@ export { FITSWriter } from "./FITSWriter.js";
 export { ParseHeader } from "./ParseHeader.js";
 export { ParsePayload } from "./ParsePayload.js";
 export { ParseUtils } from "./ParseUtils.js";
+
+export { FITSHDU } from "./model/FITSHDU.js";
+export type { FITSHDUType } from "./model/FITSHDU.js";
+export { ImageHDU } from "./model/ImageHDU.js";
+export { PrimaryHDU } from "./model/PrimaryHDU.js";
+export { FITSFile } from "./model/FITSFile.js";
