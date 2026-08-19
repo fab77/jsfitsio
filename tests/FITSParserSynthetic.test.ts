@@ -13,7 +13,10 @@ import {
   createSyntheticImageHDU,
   createSyntheticMultiHDUFits,
   createSyntheticBinaryTableHDU,
+  createSyntheticAsciiTableHDU,
 } from "./helpers/synthetic-fits";
+
+import { AsciiTableHDU } from "../src/model/AsciiTableHDU";
 import { BinaryTableHDU } from "../src/model/BinaryTableHDU";
 
 let temporaryDirectories: string[] = [];
@@ -363,6 +366,132 @@ describe("FITSParser synthetic FITS", () => {
 
     expect(hdu.dataByteLength).toBe(16);
   });
+
+  test("loads an ASCII TABLE extension", async () => {
+    const primary = createSyntheticImageHDU({
+      primary: true,
+      shape: [],
+      pixels: [],
+    });
+
+    /*
+     * Layout of each 20-character row:
+     *
+     * column ID:
+     *   TBCOL1 = 1
+     *   TFORM1 = I4
+     *   bytes 0..3
+     *
+     * column NAME:
+     *   TBCOL2 = 6
+     *   TFORM2 = A8
+     *   bytes 5..12
+     *
+     * column FLUX:
+     *   TBCOL3 = 14
+     *   TFORM3 = F7.2
+     *   bytes 13..19
+     */
+    const row1 = createAsciiTableRow(1, "STAR-A", 12.5);
+
+    const row2 = createAsciiTableRow(2, "STAR-B", 3.25);
+
+    expect(row1).toHaveLength(20);
+    expect(row2).toHaveLength(20);
+
+    const table = createSyntheticAsciiTableHDU({
+      rowByteLength: 20,
+
+      columns: [
+        {
+          name: "ID",
+          format: "I4",
+          startColumn: 1,
+        },
+        {
+          name: "NAME",
+          format: "A8",
+          startColumn: 6,
+        },
+        {
+          name: "FLUX",
+          format: "F7.2",
+          startColumn: 14,
+          unit: "Jy",
+        },
+      ],
+
+      rows: [row1, row2],
+    });
+
+    const fits = createSyntheticMultiHDUFits([primary, table]);
+
+    const path = await writeTemporaryFits(fits);
+
+    const file = await FITSParser.loadFITSFile(path);
+
+    expect(file).not.toBeNull();
+
+    if (!file) {
+      throw new Error("FITS file unexpectedly null");
+    }
+
+    expect(file.length).toBe(2);
+
+    expect(file.getHDU(0)?.type).toBe("PRIMARY");
+
+    const hdu = file.getHDU(1);
+
+    expect(hdu).toBeInstanceOf(AsciiTableHDU);
+
+    if (!(hdu instanceof AsciiTableHDU)) {
+      throw new Error("Expected second HDU to be an AsciiTableHDU");
+    }
+
+    expect(hdu.type).toBe("TABLE");
+
+    expect(hdu.rowCount).toBe(2);
+
+    expect(hdu.rowByteLength).toBe(20);
+
+    expect(hdu.columnCount).toBe(3);
+
+    expect(hdu.dataByteLength).toBe(40);
+
+    expect(hdu.columns[0]).toMatchObject({
+      name: "ID",
+      format: "I4",
+      type: "INTEGER",
+      startColumn: 1,
+      byteOffset: 0,
+      width: 4,
+      decimals: null,
+    });
+
+    expect(hdu.columns[1]).toMatchObject({
+      name: "NAME",
+      format: "A8",
+      type: "CHAR",
+      startColumn: 6,
+      byteOffset: 5,
+      width: 8,
+      decimals: null,
+    });
+
+    expect(hdu.columns[2]).toMatchObject({
+      name: "FLUX",
+      format: "F7.2",
+      type: "FLOAT",
+      startColumn: 14,
+      byteOffset: 13,
+      width: 7,
+      decimals: 2,
+      unit: "Jy",
+    });
+
+    expect(hdu.getRowText(0)).toBe(row1);
+    expect(hdu.getRowText(1)).toBe(row2);
+  });
 });
 
 function createBinaryTableRow(id: number, flux: number): Uint8Array {
@@ -375,4 +504,13 @@ function createBinaryTableRow(id: number, flux: number): Uint8Array {
   view.setFloat32(4, flux, false);
 
   return new Uint8Array(buffer);
+}
+
+function createAsciiTableRow(id: number, name: string, flux: number): string {
+  return (
+    String(id).padStart(4, " ") +
+    " " +
+    name.padEnd(8, " ").slice(0, 8) +
+    flux.toFixed(2).padStart(7, " ")
+  );
 }

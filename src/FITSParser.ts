@@ -10,6 +10,14 @@ import { FITSImageUtils } from "./FITSImageUtils.js";
 import { ImageHDU } from "./model/ImageHDU.js";
 import { BinaryTableHDU } from "./model/BinaryTableHDU.js";
 import { FITSBinaryTableUtils } from "./FITSBinaryTableUtils.js";
+import { AsciiTableHDU } from "./model/AsciiTableHDU.js";
+
+import type {
+  FITSAsciiTableColumn,
+  FITSAsciiTableColumnType,
+} from "./model/FITSAsciiTableColumn.js";
+
+import { FITSAsciiTableUtils } from "./FITSAsciiTableUtils.js";
 import {
   FITSBinaryTableColumn,
   FITSBinaryTableColumnType,
@@ -140,8 +148,37 @@ export class FITSParser {
 
           break;
         }
-        case "TABLE":
-          throw new Error("ASCII FITS TABLE support is not implemented yet.");
+        case "TABLE": {
+          const dataByteLength =
+            FITSParser.getAsciiTablePayloadByteLength(header);
+
+          if (dataOffset + dataByteLength > rawData.byteLength) {
+            throw new Error(
+              `Invalid ASCII TABLE HDU ${hduIndex}: ` +
+                `expected ${dataByteLength} payload bytes ` +
+                `at offset ${dataOffset}, but only ` +
+                `${rawData.byteLength - dataOffset} remain.`,
+            );
+          }
+
+          const rawPayload = rawData.subarray(
+            dataOffset,
+            dataOffset + dataByteLength,
+          );
+
+          const hdu = FITSParser.createAsciiTableHDU(
+            header,
+            rawPayload,
+            dataOffset,
+            dataByteLength,
+          );
+
+          fitsFile.addHDU(hdu);
+
+          offset = dataOffset + FITSParser.getPaddedByteLength(dataByteLength);
+
+          break;
+        }
 
         default:
           throw new Error(`Unsupported FITS HDU type at index ${hduIndex}.`);
@@ -214,7 +251,6 @@ export class FITSParser {
     dataByteLength: number,
     primary: boolean,
   ): PrimaryHDU | ImageHDU {
-    
     const finalHeader =
       ParsePayload.computePhysicalMinAndMax(header, rawPayload) ?? header;
 
@@ -443,6 +479,196 @@ export class FITSParser {
     }
 
     return new BinaryTableHDU(
+      header,
+      rawPayload,
+      dataOffset,
+      dataByteLength,
+      rowByteLength,
+      rowCount,
+      columns,
+    );
+  }
+
+  private static getAsciiTablePayloadByteLength(
+    header: FITSHeaderManager,
+  ): number {
+    const rowByteLength = ParseHeader.getFITSItemValue(
+      header,
+      FITSHeaderManager.NAXIS1,
+    );
+
+    const rowCount = ParseHeader.getFITSItemValue(
+      header,
+      FITSHeaderManager.NAXIS2,
+    );
+
+    if (rowByteLength === null || rowCount === null) {
+      throw new Error("ASCII TABLE requires NAXIS1 and NAXIS2.");
+    }
+
+    if (!Number.isInteger(rowByteLength) || rowByteLength < 0) {
+      throw new Error(`Invalid ASCII TABLE NAXIS1=${rowByteLength}.`);
+    }
+
+    if (!Number.isInteger(rowCount) || rowCount < 0) {
+      throw new Error(`Invalid ASCII TABLE NAXIS2=${rowCount}.`);
+    }
+
+    const pcount =
+      ParseHeader.getFITSItemValue(header, FITSHeaderManager.PCOUNT) ?? 0;
+
+    if (pcount !== 0) {
+      throw new Error(`ASCII TABLE requires PCOUNT=0, received ${pcount}.`);
+    }
+
+    return rowByteLength * rowCount;
+  }
+
+  private static mapAsciiType(code: string): FITSAsciiTableColumnType {
+    switch (code.toUpperCase()) {
+      case "A":
+        return "CHAR";
+
+      case "I":
+        return "INTEGER";
+
+      case "F":
+        return "FLOAT";
+
+      case "E":
+        return "EXPONENTIAL";
+
+      case "D":
+        return "DOUBLE";
+
+      default:
+        return "UNKNOWN";
+    }
+  }
+
+  private static getAsciiTableColumns(
+    header: FITSHeaderManager,
+  ): FITSAsciiTableColumn[] {
+    const fieldCount = ParseHeader.getFITSItemValue(
+      header,
+      FITSHeaderManager.TFIELDS,
+    );
+
+    if (fieldCount === null) {
+      throw new Error("ASCII TABLE requires TFIELDS.");
+    }
+
+    if (!Number.isInteger(fieldCount) || fieldCount < 0) {
+      throw new Error(`Invalid ASCII TABLE TFIELDS=${fieldCount}.`);
+    }
+
+    const columns: FITSAsciiTableColumn[] = [];
+
+    for (let index = 1; index <= fieldCount; index++) {
+      const tform = ParseHeader.getFITSItemStringValue(
+        header,
+        FITSHeaderManager.tableFieldKey("TFORM", index),
+      );
+
+      if (tform === null) {
+        throw new Error(`Missing TFORM${index}.`);
+      }
+
+      const tbcol = ParseHeader.getFITSItemValue(
+        header,
+        FITSHeaderManager.tableFieldKey("TBCOL", index),
+      );
+
+      if (tbcol === null) {
+        throw new Error(`Missing TBCOL${index}.`);
+      }
+
+      if (!Number.isInteger(tbcol) || tbcol < 1) {
+        throw new Error(`Invalid TBCOL${index}=${tbcol}.`);
+      }
+
+      const parsed = FITSAsciiTableUtils.parseTFORM(tform);
+
+      const name = ParseHeader.getFITSItemStringValue(
+        header,
+        FITSHeaderManager.tableFieldKey("TTYPE", index),
+      );
+
+      const unit = ParseHeader.getFITSItemStringValue(
+        header,
+        FITSHeaderManager.tableFieldKey("TUNIT", index),
+      );
+
+      columns.push({
+        index,
+
+        name,
+
+        format: tform,
+
+        type: FITSParser.mapAsciiType(parsed.code),
+
+        startColumn: tbcol,
+
+        /*
+         * FITS TBCOL is 1-based.
+         * JavaScript offsets are 0-based.
+         */
+        byteOffset: tbcol - 1,
+
+        width: parsed.width,
+
+        decimals: parsed.decimals,
+
+        unit,
+      });
+    }
+
+    return columns;
+  }
+
+  private static validateAsciiTableColumns(
+    columns: readonly FITSAsciiTableColumn[],
+    rowByteLength: number,
+  ): void {
+    for (const column of columns) {
+      const endOffset = column.byteOffset + column.width;
+
+      if (endOffset > rowByteLength) {
+        throw new Error(
+          `ASCII TABLE column ${column.index} ` +
+            `extends to byte ${endOffset}, ` +
+            `but NAXIS1=${rowByteLength}.`,
+        );
+      }
+    }
+  }
+
+  private static createAsciiTableHDU(
+    header: FITSHeaderManager,
+    rawPayload: Uint8Array,
+    dataOffset: number,
+    dataByteLength: number,
+  ): AsciiTableHDU {
+    const rowByteLength = ParseHeader.getFITSItemValue(
+      header,
+      FITSHeaderManager.NAXIS1,
+    );
+
+    const rowCount = ParseHeader.getFITSItemValue(
+      header,
+      FITSHeaderManager.NAXIS2,
+    );
+
+    if (rowByteLength === null || rowCount === null) {
+      throw new Error("Invalid ASCII TABLE header.");
+    }
+
+    const columns = FITSParser.getAsciiTableColumns(header);
+
+    FITSParser.validateAsciiTableColumns(columns, rowByteLength);
+
+    return new AsciiTableHDU(
       header,
       rawPayload,
       dataOffset,

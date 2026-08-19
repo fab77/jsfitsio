@@ -29,6 +29,7 @@ export class FITSHeaderManager {
   static TSCAL = "TSCAL";
   static TZERO = "TZERO";
   static TNULL = "TNULL";
+  static TBCOL = "TBCOL";
 
   private items: FITSHeaderItem[] = [];
 
@@ -87,7 +88,7 @@ export class FITSHeaderManager {
   }
 
   static tableFieldKey(
-    prefix: "TFORM" | "TTYPE" | "TUNIT" | "TSCAL" | "TZERO" | "TNULL",
+    prefix: "TFORM" | "TTYPE" | "TUNIT" | "TSCAL" | "TZERO" | "TNULL" | "TBCOL",
     index: number,
   ): string {
     if (!Number.isInteger(index) || index < 1) {
@@ -98,7 +99,7 @@ export class FITSHeaderManager {
 
     return `${prefix}${index}`;
   }
-  
+
   static naxisKey(axis: number): string {
     if (!Number.isInteger(axis) || axis < 1) {
       throw new RangeError(

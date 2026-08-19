@@ -13,3 +13,17 @@ export type { FITSHDUType } from "./model/FITSHDU.js";
 export { ImageHDU } from "./model/ImageHDU.js";
 export { PrimaryHDU } from "./model/PrimaryHDU.js";
 export { FITSFile } from "./model/FITSFile.js";
+
+export { BinaryTableHDU } from "./model/BinaryTableHDU.js";
+
+export type {
+  FITSBinaryTableColumn,
+  FITSBinaryTableColumnType,
+} from "./model/FITSBinaryTableColumn.js";
+
+export { AsciiTableHDU } from "./model/AsciiTableHDU.js";
+
+export type {
+  FITSAsciiTableColumn,
+  FITSAsciiTableColumnType,
+} from "./model/FITSAsciiTableColumn.js";

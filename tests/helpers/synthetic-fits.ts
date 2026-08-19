@@ -2,6 +2,26 @@ const FITS_CARD_SIZE = 80;
 const FITS_BLOCK_SIZE = 2880;
 const CARDS_PER_BLOCK = FITS_BLOCK_SIZE / FITS_CARD_SIZE;
 
+export interface SyntheticAsciiTableColumn {
+  name: string;
+  format: string;
+
+  /**
+   * FITS TBCOL value, 1-based.
+   */
+  startColumn: number;
+
+  unit?: string;
+}
+
+export interface SyntheticAsciiTableHDUOptions {
+  rowByteLength: number;
+
+  columns: SyntheticAsciiTableColumn[];
+
+  rows: string[];
+}
+
 export interface SyntheticFitsOptions {
   bitpix?: 8 | 16 | 32 | 64 | -32 | -64;
 
@@ -517,6 +537,94 @@ export function createSyntheticBinaryTableHDU(
 
     payloadOffset += row.byteLength;
   }
+
+  return result;
+}
+
+export function createSyntheticAsciiTableHDU(
+  options: SyntheticAsciiTableHDUOptions,
+): Uint8Array {
+  const { rowByteLength, columns, rows } = options;
+
+  if (!Number.isInteger(rowByteLength) || rowByteLength <= 0) {
+    throw new Error(`Invalid ASCII TABLE rowByteLength=${rowByteLength}.`);
+  }
+
+  const cards: string[] = [
+    createValueCard("XTENSION", "TABLE   "),
+
+    createValueCard("BITPIX", 8),
+
+    createValueCard("NAXIS", 2),
+
+    createValueCard("NAXIS1", rowByteLength),
+
+    createValueCard("NAXIS2", rows.length),
+
+    createValueCard("PCOUNT", 0),
+
+    createValueCard("GCOUNT", 1),
+
+    createValueCard("TFIELDS", columns.length),
+  ];
+
+  columns.forEach((column, index) => {
+    const field = index + 1;
+
+    cards.push(createValueCard(`TTYPE${field}`, column.name));
+
+    cards.push(createValueCard(`TBCOL${field}`, column.startColumn));
+
+    cards.push(createValueCard(`TFORM${field}`, column.format));
+
+    if (column.unit !== undefined) {
+      cards.push(createValueCard(`TUNIT${field}`, column.unit));
+    }
+  });
+
+  cards.push(createEndCard());
+
+  const headerText = cards.join("");
+
+  const headerByteLength =
+    Math.ceil(headerText.length / FITS_BLOCK_SIZE) * FITS_BLOCK_SIZE;
+
+  const headerBytes = new TextEncoder().encode(
+    headerText.padEnd(headerByteLength, " "),
+  );
+
+  /*
+   * Every ASCII TABLE row occupies exactly NAXIS1 bytes.
+   */
+  const payload = new Uint8Array(rowByteLength * rows.length);
+
+  payload.fill(0x20);
+
+  const encoder = new TextEncoder();
+
+  rows.forEach((row, rowIndex) => {
+    if (row.length > rowByteLength) {
+      throw new Error(
+        `ASCII TABLE row ${rowIndex} has ${row.length} characters, ` +
+          `but NAXIS1=${rowByteLength}.`,
+      );
+    }
+
+    const encoded = encoder.encode(row.padEnd(rowByteLength, " "));
+
+    payload.set(encoded, rowIndex * rowByteLength);
+  });
+
+  const paddedPayloadLength =
+    payload.byteLength === 0
+      ? 0
+      : Math.ceil(payload.byteLength / FITS_BLOCK_SIZE) * FITS_BLOCK_SIZE;
+
+  const result = new Uint8Array(headerBytes.byteLength + paddedPayloadLength);
+
+  result.set(headerBytes, 0);
+
+  result.set(payload, headerBytes.byteLength);
 
   return result;
 }
