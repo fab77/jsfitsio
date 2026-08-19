@@ -12,8 +12,7 @@ describe("ParsePayload physical values", () => {
   test("computes min/max without BLANK keyword", () => {
     const fits = createSyntheticFits({
       bitpix: 16,
-      naxis1: 3,
-      naxis2: 1,
+      shape: [3,1],
       pixels: [-10, 0, 20],
     });
 
@@ -32,8 +31,7 @@ describe("ParsePayload physical values", () => {
   test("applies BSCALE and BZERO", () => {
     const fits = createSyntheticFits({
       bitpix: 16,
-      naxis1: 3,
-      naxis2: 1,
+      shape: [3,1],
 
       bscale: 2,
       bzero: 100,
@@ -63,8 +61,7 @@ describe("ParsePayload physical values", () => {
   test("ignores integer BLANK value", () => {
     const fits = createSyntheticFits({
       bitpix: 16,
-      naxis1: 4,
-      naxis2: 1,
+      shape: [4,1],
 
       blank: -999,
 
@@ -86,8 +83,7 @@ describe("ParsePayload physical values", () => {
   test("zero is a valid minimum", () => {
     const fits = createSyntheticFits({
       bitpix: 16,
-      naxis1: 3,
-      naxis2: 1,
+      shape: [3,1],
       pixels: [0, 10, 20],
     });
 
@@ -106,9 +102,7 @@ describe("ParsePayload physical values", () => {
   test("ignores NaN when computing floating-point min/max", () => {
     const fits = createSyntheticFits({
       bitpix: -32,
-      naxis1: 4,
-      naxis2: 1,
-
+      shape: [4,1],
       pixels: [-10, Number.NaN, 0, 20],
     });
 
@@ -127,8 +121,7 @@ describe("ParsePayload physical values", () => {
   test("two-block synthetic FITS places payload at byte 5760", () => {
     const fits = createSyntheticFits({
       bitpix: 16,
-      naxis1: 2,
-      naxis2: 1,
+      shape: [2,1],
       headerBlocks: 2,
       pixels: [-10, 20],
     });
@@ -222,5 +215,18 @@ describe("ParsePayload BITPIX decoding", () => {
     expect(() => ParsePayload.extractPixelValue(payload, 0, 64)).toThrow(
       RangeError,
     );
+  });
+
+  test("creates BigInt64Array without precision loss", () => {
+    const payload = createPayload(64, [9007199254740992n, 9007199254740993n]);
+
+    const typed = ParsePayload.createTypedArray(payload, 64);
+
+    expect(typed).toBeInstanceOf(BigInt64Array);
+
+    expect(Array.from(typed as BigInt64Array)).toEqual([
+      9007199254740992n,
+      9007199254740993n,
+    ]);
   });
 });

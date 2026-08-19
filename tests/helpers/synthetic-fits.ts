@@ -4,16 +4,9 @@ const CARDS_PER_BLOCK = FITS_BLOCK_SIZE / FITS_CARD_SIZE;
 
 export interface SyntheticFitsOptions {
   bitpix?: 8 | 16 | 32 | 64 | -32 | -64;
-  naxis1?: number;
-  naxis2?: number;
 
-  /**
-   * Force the END card to be located in this header block.
-   *
-   * 1 = first 2880-byte block
-   * 2 = second block
-   * etc.
-   */
+  shape?: number[];
+
   headerBlocks?: number;
 
   bzero?: number;
@@ -89,8 +82,7 @@ export function createSyntheticFits(
 ): Uint8Array {
   const {
     bitpix = 16,
-    naxis1 = 2,
-    naxis2 = 1,
+    shape = [2, 1],
     headerBlocks = 1,
     bzero,
     bscale,
@@ -104,19 +96,32 @@ export function createSyntheticFits(
     throw new Error("headerBlocks must be >= 1");
   }
 
-  if (pixels.length !== naxis1 * naxis2) {
+  if (
+    !shape.every((dimension) => Number.isInteger(dimension) && dimension >= 0)
+  ) {
+    throw new Error(`Invalid FITS shape: [${shape.join(", ")}]`);
+  }
+
+  const expectedPixelCount =
+    shape.length === 0
+      ? 0
+      : shape.reduce((total, dimension) => total * dimension, 1);
+
+  if (pixels.length !== expectedPixelCount) {
     throw new Error(
-      `Expected ${naxis1 * naxis2} pixels, got ${pixels.length}`,
+      `Expected ${expectedPixelCount} pixels, got ${pixels.length}`,
     );
   }
 
   const cards: string[] = [
     createValueCard("SIMPLE", true, "conforms to FITS standard"),
     createValueCard("BITPIX", bitpix),
-    createValueCard("NAXIS", 2),
-    createValueCard("NAXIS1", naxis1),
-    createValueCard("NAXIS2", naxis2),
+    createValueCard("NAXIS", shape.length),
   ];
+
+  shape.forEach((dimension, index) => {
+    cards.push(createValueCard(`NAXIS${index + 1}`, dimension));
+  });
 
   if (bzero !== undefined) {
     cards.push(createValueCard("BZERO", bzero));
@@ -152,15 +157,10 @@ export function createSyntheticFits(
    *
    * This guarantees that a parser hard-coded to 2880 bytes fails.
    */
-  const firstCardInLastBlock =
-    (headerBlocks - 1) * CARDS_PER_BLOCK;
+  const firstCardInLastBlock = (headerBlocks - 1) * CARDS_PER_BLOCK;
 
   while (cards.length <= firstCardInLastBlock) {
-    cards.push(
-      createCommentCard(
-        `synthetic header filler ${cards.length}`,
-      ),
-    );
+    cards.push(createCommentCard(`synthetic header filler ${cards.length}`));
   }
 
   cards.push(createEndCard());
@@ -170,38 +170,26 @@ export function createSyntheticFits(
   const headerByteLength = headerBlocks * FITS_BLOCK_SIZE;
 
   if (headerText.length > headerByteLength) {
-    throw new Error(
-      `Header does not fit into ${headerBlocks} FITS block(s)`,
-    );
+    throw new Error(`Header does not fit into ${headerBlocks} FITS block(s)`);
   }
 
-  const paddedHeader = headerText.padEnd(
-    headerByteLength,
-    " ",
-  );
+  const paddedHeader = headerText.padEnd(headerByteLength, " ");
 
   const encoder = new TextEncoder();
   const headerBytes = encoder.encode(paddedHeader);
 
-  const payload = createPayload(
-    bitpix,
-    pixels,
-  );
+  const payload = createPayload(bitpix, pixels);
 
   const paddedPayloadLength =
-    Math.ceil(payload.byteLength / FITS_BLOCK_SIZE) *
-    FITS_BLOCK_SIZE;
+    payload.byteLength === 0
+      ? 0
+      : Math.ceil(payload.byteLength / FITS_BLOCK_SIZE) * FITS_BLOCK_SIZE;
 
-  const fits = new Uint8Array(
-    headerBytes.byteLength + paddedPayloadLength,
-  );
+  const fits = new Uint8Array(headerBytes.byteLength + paddedPayloadLength);
 
   fits.set(headerBytes, 0);
 
-  fits.set(
-    payload,
-    headerBytes.byteLength,
-  );
+  fits.set(payload, headerBytes.byteLength);
 
   return fits;
 }
@@ -217,9 +205,7 @@ export function createPayload(
 ): Uint8Array {
   const bytesPerElement = Math.abs(bitpix) / 8;
 
-  const buffer = new ArrayBuffer(
-    values.length * bytesPerElement,
-  );
+  const buffer = new ArrayBuffer(values.length * bytesPerElement);
 
   const view = new DataView(buffer);
 
@@ -228,58 +214,35 @@ export function createPayload(
 
     switch (bitpix) {
       case 8:
-        view.setUint8(
-          offset,
-          Number(value),
-        );
+        view.setUint8(offset, Number(value));
         break;
 
       case 16:
-        view.setInt16(
-          offset,
-          Number(value),
-          false,
-        );
+        view.setInt16(offset, Number(value), false);
         break;
 
       case 32:
-        view.setInt32(
-          offset,
-          Number(value),
-          false,
-        );
+        view.setInt32(offset, Number(value), false);
         break;
 
       case 64:
         view.setBigInt64(
           offset,
-          typeof value === "bigint"
-            ? value
-            : BigInt(value),
+          typeof value === "bigint" ? value : BigInt(value),
           false,
         );
         break;
 
       case -32:
-        view.setFloat32(
-          offset,
-          Number(value),
-          false,
-        );
+        view.setFloat32(offset, Number(value), false);
         break;
 
       case -64:
-        view.setFloat64(
-          offset,
-          Number(value),
-          false,
-        );
+        view.setFloat64(offset, Number(value), false);
         break;
 
       default:
-        throw new Error(
-          `Unsupported BITPIX: ${bitpix}`,
-        );
+        throw new Error(`Unsupported BITPIX: ${bitpix}`);
     }
   });
 

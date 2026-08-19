@@ -6,6 +6,7 @@ import { FITSParsed } from "./model/FITSParsed.js";
 import { FITSHeaderManager } from "./model/FITSHeaderManager.js";
 import { FITSFile } from "./model/FITSFile.js";
 import { PrimaryHDU } from "./model/PrimaryHDU.js";
+import { FITSImageUtils } from "./FITSImageUtils.js";
 
 export class FITSParser {
   static async loadFITS(path: string): Promise<FITSParsed | null> {
@@ -21,6 +22,15 @@ export class FITSParser {
       return null;
     }
 
+    const shape = FITSImageUtils.getShape(primary.header);
+
+    if (shape.length !== 2) {
+      throw new Error(
+        "Legacy loadFITS() supports only 2D FITS images. " +
+          "Use loadFITSFile() for N-dimensional images.",
+      );
+    }
+    
     return {
       header: primary.header,
 
@@ -69,14 +79,63 @@ export class FITSParser {
       throw new Error("Unable to parse FITS primary HDU.");
     }
 
+    const bitpix = ParseHeader.getFITSItemValue(
+      finalHeader,
+      FITSHeaderManager.BITPIX,
+    );
+
+    if (bitpix === null) {
+      throw new Error("BITPIX not defined.");
+    }
+
+    const shape = FITSImageUtils.getShape(finalHeader);
+
+    const typedData = ParsePayload.createTypedArray(rawPayload, bitpix);
+
     const primary = new PrimaryHDU(
       finalHeader,
       rawPayload,
       dataOffset,
       dataByteLength,
+      bitpix,
+      shape,
+      typedData,
     );
 
     return new FITSFile([primary]);
+  }
+
+  private static getImageShape(header: FITSHeaderManager): number[] {
+    const naxis = ParseHeader.getFITSItemValue(header, FITSHeaderManager.NAXIS);
+
+    if (naxis === null) {
+      throw new Error("NAXIS not defined.");
+    }
+
+    if (!Number.isInteger(naxis) || naxis < 0) {
+      throw new Error(`Invalid FITS NAXIS value: ${naxis}`);
+    }
+
+    const shape: number[] = [];
+
+    for (let axis = 1; axis <= naxis; axis++) {
+      const size = ParseHeader.getFITSItemValue(
+        header,
+        FITSHeaderManager.naxisKey(axis),
+      );
+
+      if (size === null) {
+        throw new Error(`NAXIS${axis} not defined.`);
+      }
+
+      if (!Number.isInteger(size) || size < 0) {
+        throw new Error(`Invalid NAXIS${axis} value: ${size}`);
+      }
+
+      shape.push(size);
+    }
+
+    return shape;
   }
 
   private static processFits(rawData: Uint8Array): FITSParsed | null {
@@ -114,29 +173,26 @@ export class FITSParser {
       FITSHeaderManager.BITPIX,
     );
 
-    const naxis1 = ParseHeader.getFITSItemValue(
-      header,
-      FITSHeaderManager.NAXIS1,
-    );
-
-    const naxis2 = ParseHeader.getFITSItemValue(
-      header,
-      FITSHeaderManager.NAXIS2,
-    );
-
     if (bitpix === null) {
       throw new Error("BITPIX not defined.");
     }
 
-    if (naxis1 === null || naxis2 === null) {
-      throw new Error("NAXIS1/NAXIS2 not defined.");
+    ParsePayload.assertSupportedBITPIX(bitpix);
+
+    const shape = FITSParser.getImageShape(header);
+
+    if (shape.length === 0) {
+      return 0;
     }
 
-    ParsePayload.assertSupportedBITPIX(bitpix);
+    const elementCount = shape.reduce(
+      (total, dimension) => total * dimension,
+      1,
+    );
 
     const bytesPerElement = Math.abs(bitpix) / 8;
 
-    return naxis1 * naxis2 * bytesPerElement;
+    return elementCount * bytesPerElement;
   }
 
   private static createMatrix(

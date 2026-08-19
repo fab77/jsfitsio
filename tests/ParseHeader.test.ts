@@ -40,8 +40,7 @@ describe("ParseHeader", () => {
   test("parses keywords located before END in a two-block header", () => {
     const fits = createSyntheticFits({
       bitpix: 16,
-      naxis1: 2,
-      naxis2: 1,
+      shape: [2,1],
       headerBlocks: 2,
       pixels: [-10, 20],
     });
