@@ -7,3 +7,23 @@ export { FITSWriter } from "./FITSWriter.js";
 export { ParseHeader } from "./ParseHeader.js";
 export { ParsePayload } from "./ParsePayload.js";
 export { ParseUtils } from "./ParseUtils.js";
+
+export { FITSHDU } from "./model/FITSHDU.js";
+export type { FITSHDUType } from "./model/FITSHDU.js";
+export { ImageHDU } from "./model/ImageHDU.js";
+export { PrimaryHDU } from "./model/PrimaryHDU.js";
+export { FITSFile } from "./model/FITSFile.js";
+
+export { BinaryTableHDU } from "./model/BinaryTableHDU.js";
+
+export type {
+  FITSBinaryTableColumn,
+  FITSBinaryTableColumnType,
+} from "./model/FITSBinaryTableColumn.js";
+
+export { AsciiTableHDU } from "./model/AsciiTableHDU.js";
+
+export type {
+  FITSAsciiTableColumn,
+  FITSAsciiTableColumnType,
+} from "./model/FITSAsciiTableColumn.js";
