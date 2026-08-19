@@ -19,6 +19,7 @@ export class FITSHeaderManager {
   static CRPIX2 = "CRPIX2";
   static ORIGIN = "ORIGIN";
   static COMMENT = "COMMENT";
+  static XTENSION = "XTENSION";
 
   private items: FITSHeaderItem[] = [];
 
@@ -81,5 +82,18 @@ export class FITSHeaderManager {
     }
 
     return `NAXIS${axis}`;
+  }
+
+  static getFITSItemStringValue(
+    header: FITSHeaderManager,
+    key: string,
+  ): string | null {
+    const item = header.findById(key);
+
+    if (!item) {
+      return null;
+    }
+
+    return String(item.value).trim().replace(/^'/, "").replace(/'$/, "").trim();
   }
 }

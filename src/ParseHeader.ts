@@ -11,17 +11,28 @@ import { FITSHeaderManager } from "./model/FITSHeaderManager.js";
  */
 
 export class ParseHeader {
-
   static readonly CARD_SIZE = 80;
   static readonly BLOCK_SIZE = 2880;
 
+  static getFITSItemStringValue(
+    header: FITSHeaderManager,
+    key: string,
+  ): string | null {
+    const item = header.findById(key);
 
-  static getFITSItemValue(
-    header: FITSHeaderManager, 
-    key: string
-  ): number | null {
-    const item = header.findById(key)
+    if (!item) {
+      return null;
+    }
+
+    return String(item.value).trim().replace(/^'/, "").replace(/'$/, "").trim();
+  }
   
+  static getFITSItemValue(
+    header: FITSHeaderManager,
+    key: string,
+  ): number | null {
+    const item = header.findById(key);
+
     if (!item) {
       return null;
     }
@@ -34,10 +45,7 @@ export class ParseHeader {
    * Returns the complete FITS header size, including padding
    * up to the next 2880-byte boundary.
    */
-  static getHeaderByteLength(
-    rawData: Uint8Array,
-    startOffset = 0
-  ): number {
+  static getHeaderByteLength(rawData: Uint8Array, startOffset = 0): number {
     const decoder = new TextDecoder("ascii");
 
     for (
@@ -45,31 +53,23 @@ export class ParseHeader {
       offset + ParseHeader.CARD_SIZE <= rawData.byteLength;
       offset += ParseHeader.CARD_SIZE
     ) {
-      const key = decoder
-        .decode(rawData.subarray(offset, offset + 8))
-        .trim();
+      const key = decoder.decode(rawData.subarray(offset, offset + 8)).trim();
 
       if (key === "END") {
-        const consumed =
-          offset + ParseHeader.CARD_SIZE - startOffset;
+        const consumed = offset + ParseHeader.CARD_SIZE - startOffset;
 
         return (
-          Math.ceil(consumed / ParseHeader.BLOCK_SIZE) *
-          ParseHeader.BLOCK_SIZE
+          Math.ceil(consumed / ParseHeader.BLOCK_SIZE) * ParseHeader.BLOCK_SIZE
         );
       }
     }
 
     throw new Error("Invalid FITS header: END card not found.");
   }
-  
-  static parse(
-    rawData: Uint8Array,
-    startOffset = 0
-  ): FITSHeaderManager {
+
+  static parse(rawData: Uint8Array, startOffset = 0): FITSHeaderManager {
     const decoder = new TextDecoder("ascii");
-    const headerLength =
-      ParseHeader.getHeaderByteLength(rawData, startOffset);
+    const headerLength = ParseHeader.getHeaderByteLength(rawData, startOffset);
 
     const header = new FITSHeaderManager();
 
@@ -79,7 +79,7 @@ export class ParseHeader {
       offset += ParseHeader.CARD_SIZE
     ) {
       const line = decoder.decode(
-        rawData.subarray(offset, offset + ParseHeader.CARD_SIZE)
+        rawData.subarray(offset, offset + ParseHeader.CARD_SIZE),
       );
 
       const key = line.slice(0, 8).trim();
@@ -95,11 +95,7 @@ export class ParseHeader {
       let value: string | number;
       let comment = "";
 
-      const rawValue = line
-        .slice(10)
-        .trim()
-        .split("/")[0]
-        .trim();
+      const rawValue = line.slice(10).trim().split("/")[0].trim();
 
       if (Number.isNaN(Number(rawValue))) {
         value = rawValue;
@@ -108,16 +104,12 @@ export class ParseHeader {
       }
 
       if (line.includes("/")) {
-        comment =
-          line.slice(10).trim().split("/")[1]?.trim() ?? "";
+        comment = line.slice(10).trim().split("/")[1]?.trim() ?? "";
       }
 
-      header.insert(
-        new FITSHeaderItem(key, value, comment)
-      );
+      header.insert(new FITSHeaderItem(key, value, comment));
     }
 
     return header;
   }
-
 }

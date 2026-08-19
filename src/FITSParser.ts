@@ -7,6 +7,7 @@ import { FITSHeaderManager } from "./model/FITSHeaderManager.js";
 import { FITSFile } from "./model/FITSFile.js";
 import { PrimaryHDU } from "./model/PrimaryHDU.js";
 import { FITSImageUtils } from "./FITSImageUtils.js";
+import { ImageHDU } from "./model/ImageHDU.js";
 
 export class FITSParser {
   static async loadFITS(path: string): Promise<FITSParsed | null> {
@@ -30,7 +31,7 @@ export class FITSParser {
           "Use loadFITSFile() for N-dimensional images.",
       );
     }
-    
+
     return {
       header: primary.header,
 
@@ -49,34 +50,147 @@ export class FITSParser {
   }
 
   private static processFITSFile(rawData: Uint8Array): FITSFile {
-    const header = ParseHeader.parse(rawData);
+    const fitsFile = new FITSFile();
 
-    const dataOffset = ParseHeader.getHeaderByteLength(rawData);
+    let offset = 0;
+    let hduIndex = 0;
 
-    const dataByteLength = FITSParser.getImagePayloadByteLength(header);
+    while (offset < rawData.byteLength) {
+      /*
+       * Ignore trailing zero/space padding.
+       */
+      if (FITSParser.isPaddingOnly(rawData, offset)) {
+        break;
+      }
 
-    if (dataOffset + dataByteLength > rawData.byteLength) {
-      throw new Error(
-        `Invalid FITS file: expected ` +
-          `${dataByteLength} payload bytes ` +
-          `at offset ${dataOffset}, but file ` +
-          `contains only ` +
-          `${rawData.byteLength - dataOffset}.`,
-      );
+      const header = ParseHeader.parse(rawData, offset);
+
+      const headerByteLength = ParseHeader.getHeaderByteLength(rawData, offset);
+
+      const dataOffset = offset + headerByteLength;
+
+      const hduType = FITSParser.getHDUType(header, hduIndex);
+
+      switch (hduType) {
+        case "PRIMARY":
+        case "IMAGE": {
+          const dataByteLength = FITSParser.getImagePayloadByteLength(header);
+
+          if (dataOffset + dataByteLength > rawData.byteLength) {
+            throw new Error(
+              `Invalid FITS HDU ${hduIndex}: ` +
+                `expected ${dataByteLength} payload bytes ` +
+                `at offset ${dataOffset}, but only ` +
+                `${rawData.byteLength - dataOffset} remain.`,
+            );
+          }
+
+          const rawPayload = rawData.subarray(
+            dataOffset,
+            dataOffset + dataByteLength,
+          );
+
+          const hdu = FITSParser.createImageHDU(
+            header,
+            rawPayload,
+            dataOffset,
+            dataByteLength,
+            hduIndex === 0,
+          );
+
+          fitsFile.addHDU(hdu);
+
+          const paddedPayloadLength =
+            FITSParser.getPaddedByteLength(dataByteLength);
+
+          offset = dataOffset + paddedPayloadLength;
+
+          break;
+        }
+
+        case "BINTABLE":
+        case "TABLE":
+          throw new Error(`FITS extension ${hduType} is not supported yet.`);
+
+        default:
+          throw new Error(`Unsupported FITS HDU type at index ${hduIndex}.`);
+      }
+
+      hduIndex++;
     }
 
-    const rawPayload = rawData.subarray(
-      dataOffset,
-      dataOffset + dataByteLength,
+    return fitsFile;
+  }
+
+  private static getPaddedByteLength(byteLength: number): number {
+    if (byteLength === 0) {
+      return 0;
+    }
+
+    return (
+      Math.ceil(byteLength / ParseHeader.BLOCK_SIZE) * ParseHeader.BLOCK_SIZE
+    );
+  }
+
+  private static isPaddingOnly(rawData: Uint8Array, offset: number): boolean {
+    for (let i = offset; i < rawData.byteLength; i++) {
+      const value = rawData[i];
+
+      if (value !== 0x00 && value !== 0x20) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  private static getHDUType(
+    header: FITSHeaderManager,
+    index: number,
+  ): "PRIMARY" | "IMAGE" | "BINTABLE" | "TABLE" | "UNKNOWN" {
+    if (index === 0) {
+      return "PRIMARY";
+    }
+
+    const xtension = ParseHeader.getFITSItemStringValue(
+      header,
+      FITSHeaderManager.XTENSION,
     );
 
+    if (xtension === null) {
+      return "UNKNOWN";
+    }
+
+    switch (xtension.toUpperCase()) {
+      case "IMAGE":
+        return "IMAGE";
+
+      case "BINTABLE":
+        return "BINTABLE";
+
+      case "TABLE":
+        return "TABLE";
+
+      default:
+        return "UNKNOWN";
+    }
+  }
+
+
+  private static createImageHDU(
+    header: FITSHeaderManager,
+    rawPayload: Uint8Array,
+    dataOffset: number,
+    dataByteLength: number,
+    primary: boolean,
+  ): PrimaryHDU | ImageHDU {
     const finalHeader = ParsePayload.computePhysicalMinAndMax(
       header,
       rawPayload,
     );
 
     if (finalHeader === null) {
-      throw new Error("Unable to parse FITS primary HDU.");
+      throw new Error("Unable to parse FITS image HDU.");
     }
 
     const bitpix = ParseHeader.getFITSItemValue(
@@ -92,7 +206,19 @@ export class FITSParser {
 
     const typedData = ParsePayload.createTypedArray(rawPayload, bitpix);
 
-    const primary = new PrimaryHDU(
+    if (primary) {
+      return new PrimaryHDU(
+        finalHeader,
+        rawPayload,
+        dataOffset,
+        dataByteLength,
+        bitpix,
+        shape,
+        typedData,
+      );
+    }
+
+    return new ImageHDU(
       finalHeader,
       rawPayload,
       dataOffset,
@@ -101,70 +227,6 @@ export class FITSParser {
       shape,
       typedData,
     );
-
-    return new FITSFile([primary]);
-  }
-
-  private static getImageShape(header: FITSHeaderManager): number[] {
-    const naxis = ParseHeader.getFITSItemValue(header, FITSHeaderManager.NAXIS);
-
-    if (naxis === null) {
-      throw new Error("NAXIS not defined.");
-    }
-
-    if (!Number.isInteger(naxis) || naxis < 0) {
-      throw new Error(`Invalid FITS NAXIS value: ${naxis}`);
-    }
-
-    const shape: number[] = [];
-
-    for (let axis = 1; axis <= naxis; axis++) {
-      const size = ParseHeader.getFITSItemValue(
-        header,
-        FITSHeaderManager.naxisKey(axis),
-      );
-
-      if (size === null) {
-        throw new Error(`NAXIS${axis} not defined.`);
-      }
-
-      if (!Number.isInteger(size) || size < 0) {
-        throw new Error(`Invalid NAXIS${axis} value: ${size}`);
-      }
-
-      shape.push(size);
-    }
-
-    return shape;
-  }
-
-  private static processFits(rawData: Uint8Array): FITSParsed | null {
-    const header = ParseHeader.parse(rawData);
-
-    const dataOffset = ParseHeader.getHeaderByteLength(rawData);
-
-    const payloadLength = FITSParser.getImagePayloadByteLength(header);
-
-    if (dataOffset + payloadLength > rawData.byteLength) {
-      throw new Error(
-        `Invalid FITS file: expected ${payloadLength} payload bytes ` +
-          `at offset ${dataOffset}, but file contains only ` +
-          `${rawData.byteLength - dataOffset}.`,
-      );
-    }
-
-    const payload = rawData.subarray(dataOffset, dataOffset + payloadLength);
-
-    const finalHeader = ParsePayload.computePhysicalMinAndMax(header, payload);
-
-    if (finalHeader === null) {
-      return null;
-    }
-
-    return {
-      header: finalHeader,
-      data: FITSParser.createMatrix(payload, header),
-    };
   }
 
   private static getImagePayloadByteLength(header: FITSHeaderManager): number {
@@ -179,7 +241,7 @@ export class FITSParser {
 
     ParsePayload.assertSupportedBITPIX(bitpix);
 
-    const shape = FITSParser.getImageShape(header);
+    const shape = FITSImageUtils.getShape(header);
 
     if (shape.length === 0) {
       return 0;

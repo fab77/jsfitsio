@@ -19,6 +19,228 @@ export interface SyntheticFitsOptions {
   pixels?: Array<number | bigint>;
 }
 
+export interface SyntheticImageHDUOptions {
+  primary?: boolean;
+
+  bitpix?: 8 | 16 | 32 | 64 | -32 | -64;
+
+  shape?: number[];
+
+  pixels?: Array<number | bigint>;
+
+  headerBlocks?: number;
+}
+
+export function createSyntheticImageHDU(
+  options: SyntheticImageHDUOptions = {},
+): Uint8Array {
+  const {
+    primary = false,
+    bitpix = 16,
+    shape = [2, 1],
+    pixels = [-10, 20],
+    headerBlocks = 1,
+  } = options;
+
+  if (headerBlocks < 1) {
+    throw new Error("headerBlocks must be >= 1");
+  }
+
+  if (
+    !shape.every(
+      (dimension) =>
+        Number.isInteger(dimension) &&
+        dimension >= 0,
+    )
+  ) {
+    throw new Error(
+      `Invalid FITS shape: [${shape.join(", ")}]`,
+    );
+  }
+
+  const expectedPixelCount =
+    shape.length === 0
+      ? 0
+      : shape.reduce(
+          (total, dimension) =>
+            total * dimension,
+          1,
+        );
+
+  if (pixels.length !== expectedPixelCount) {
+    throw new Error(
+      `Expected ${expectedPixelCount} pixels, got ${pixels.length}`,
+    );
+  }
+
+  const cards: string[] = [];
+
+  if (primary) {
+    cards.push(
+      createValueCard(
+        "SIMPLE",
+        true,
+        "conforms to FITS standard",
+      ),
+    );
+  } else {
+    cards.push(
+      createValueCard(
+        "XTENSION",
+        "IMAGE   ",
+        "Image extension",
+      ),
+    );
+  }
+
+  cards.push(
+    createValueCard("BITPIX", bitpix),
+    createValueCard("NAXIS", shape.length),
+  );
+
+  shape.forEach(
+    (dimension, index) => {
+      cards.push(
+        createValueCard(
+          `NAXIS${index + 1}`,
+          dimension,
+        ),
+      );
+    },
+  );
+
+  /*
+   * FITS image extensions require PCOUNT and GCOUNT.
+   */
+  if (!primary) {
+    cards.push(
+      createValueCard(
+        "PCOUNT",
+        0,
+      ),
+    );
+
+    cards.push(
+      createValueCard(
+        "GCOUNT",
+        1,
+      ),
+    );
+  }
+
+  const firstCardInLastBlock =
+    (headerBlocks - 1) *
+    CARDS_PER_BLOCK;
+
+  while (
+    cards.length <=
+    firstCardInLastBlock
+  ) {
+    cards.push(
+      createCommentCard(
+        `synthetic header filler ${cards.length}`,
+      ),
+    );
+  }
+
+  cards.push(
+    createEndCard(),
+  );
+
+  const headerText =
+    cards.join("");
+
+  const headerByteLength =
+    headerBlocks *
+    FITS_BLOCK_SIZE;
+
+  if (
+    headerText.length >
+    headerByteLength
+  ) {
+    throw new Error(
+      `Header does not fit into ${headerBlocks} FITS block(s)`,
+    );
+  }
+
+  const paddedHeader =
+    headerText.padEnd(
+      headerByteLength,
+      " ",
+    );
+
+  const encoder =
+    new TextEncoder();
+
+  const headerBytes =
+    encoder.encode(
+      paddedHeader,
+    );
+
+  const payload =
+    createPayload(
+      bitpix,
+      pixels,
+    );
+
+  const paddedPayloadLength =
+    payload.byteLength === 0
+      ? 0
+      : Math.ceil(
+          payload.byteLength /
+            FITS_BLOCK_SIZE,
+        ) *
+        FITS_BLOCK_SIZE;
+
+  const result =
+    new Uint8Array(
+      headerBytes.byteLength +
+        paddedPayloadLength,
+    );
+
+  result.set(
+    headerBytes,
+    0,
+  );
+
+  result.set(
+    payload,
+    headerBytes.byteLength,
+  );
+
+  return result;
+}
+
+export function createSyntheticMultiHDUFits(
+  hdus: Uint8Array[],
+): Uint8Array {
+  const totalLength =
+    hdus.reduce(
+      (sum, hdu) =>
+        sum + hdu.byteLength,
+      0,
+    );
+
+  const result =
+    new Uint8Array(
+      totalLength,
+    );
+
+  let offset = 0;
+
+  for (const hdu of hdus) {
+    result.set(
+      hdu,
+      offset,
+    );
+
+    offset +=
+      hdu.byteLength;
+  }
+
+  return result;
+}
+
 /**
  * Creates a standard FITS keyword/value card.
  *
