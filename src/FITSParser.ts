@@ -24,6 +24,12 @@ import {
 } from "./model/FITSBinaryTableColumn.js";
 
 export class FITSParser {
+  /**
+   * @deprecated Use loadFITSFile() instead.
+   *
+   * This legacy API supports only 2-dimensional image FITS files
+   * and returns the former FITSParsed structure.
+   */
   static async loadFITS(path: string): Promise<FITSParsed | null> {
     const fitsFile = await FITSParser.loadFITSFile(path);
 
@@ -722,10 +728,9 @@ export class FITSParser {
     return matrix;
   }
 
-  // static generateFITSForWeb(fitsParsed: FITSParsed) {
-  //   return FITSWriter.typedArrayToURL(fitsParsed)
-  // }
-
+  /**
+   * @deprecated Legacy FITSParsed writer API.
+   */
   static saveFITSLocally(fitsParsed: FITSParsed, path: string) {
     return FITSWriter.writeFITSFile(fitsParsed, path);
   }

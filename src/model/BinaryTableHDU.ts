@@ -5,7 +5,7 @@ import { FITSHeaderManager } from "./FITSHeaderManager.js";
 import type { FITSBinaryTableColumn } from "./FITSBinaryTableColumn.js";
 
 export class BinaryTableHDU extends FITSHDU {
-  readonly type: FITSHDUType = "BINTABLE";
+  readonly type = "BINTABLE" as const;
 
   constructor(
     header: FITSHeaderManager,
