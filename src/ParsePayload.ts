@@ -8,7 +8,6 @@
  * @link   github https://github.com/fab77/FITSParser
  * @author Fabrizio Giordano <fabriziogiordano77@gmail.com>
  */
-// import { FITSHeader } from "./model/FITSHeader.js";
 import { FITSHeaderItem } from "./model/FITSHeaderItem.js";
 import { FITSHeaderManager } from "./model/FITSHeaderManager.js";
 import { ParseHeader } from "./ParseHeader.js";
@@ -16,120 +15,245 @@ import { ParseUtils } from "./ParseUtils.js";
 
 export class ParsePayload {
 
-  
+  static readonly SUPPORTED_BITPIX = new Set([
+    8,
+    16,
+    32,
+    64,
+    -32,
+    -64,
+  ]);
 
-  static computePhysicalMinAndMax(header: FITSHeaderManager, rawData: Uint8Array) {
-
-    const BITPIX = ParseHeader.getFITSItemValue(header, FITSHeaderManager.BITPIX)
-    if (BITPIX === null) {
-      return null
+  static assertSupportedBITPIX(bitpix: number): void {
+    if (!ParsePayload.SUPPORTED_BITPIX.has(bitpix)) {
+      throw new Error(
+        `Unsupported FITS BITPIX value: ${bitpix}`
+      );
     }
-    const NAXIS1 = ParseHeader.getFITSItemValue(header, FITSHeaderManager.NAXIS1)
-    if (NAXIS1 === null) {
-      return null
-    }
-    const NAXIS2 = ParseHeader.getFITSItemValue(header, FITSHeaderManager.NAXIS2)
-    if (NAXIS2 === null) {
-      return null
-    }
-    
-    const DATAMIN = ParseHeader.getFITSItemValue(header, FITSHeaderManager.DATAMIN)
-    const DATAMAX = ParseHeader.getFITSItemValue(header, FITSHeaderManager.DATAMAX)
-    
+  }
 
-    if (!BITPIX || !NAXIS1 || !NAXIS2) {
-      return null; // return early if invalid data.
-    }
-    
+  private static extractPixelFromView(
+    view: DataView,
+    offset: number,
+    bitpix: number
+  ): number {
+    switch (bitpix) {
+      case 8:
+        return view.getUint8(offset);
 
-    if (!DATAMAX || !DATAMIN) {
+      case 16:
+        return view.getInt16(offset, false);
 
-      const [min, max] = ParsePayload.computePhysicalValues(rawData, header);
-      if (min && max) {
-        const maxitem = new FITSHeaderItem(
-          "DATAMAX",
-          min,
-          "computed by jsfitsio"
+      case 32:
+        return view.getInt32(offset, false);
+
+      case -32:
+        return view.getFloat32(offset, false);
+
+      case -64:
+        return view.getFloat64(offset, false);
+
+      case 64: {
+        const value = view.getBigInt64(offset, false);
+
+        const numeric = Number(value);
+
+        if (!Number.isSafeInteger(numeric)) {
+          throw new RangeError(
+            `BITPIX=64 value ${value} cannot be represented ` +
+            `exactly as a JavaScript number.`
+          );
+        }
+
+        return numeric;
+      }
+
+      default:
+        throw new Error(
+          `Unsupported FITS BITPIX value: ${bitpix}`
         );
-        const minitem = new FITSHeaderItem(
-          "DATAMIN",
-          max,
-          "computed by jsfitsio"
+    }
+  }
+
+
+  static computePhysicalMinAndMax(
+    header: FITSHeaderManager,
+    payload: Uint8Array
+  ): FITSHeaderManager | null {
+    const bitpix = ParseHeader.getFITSItemValue(
+      header,
+      FITSHeaderManager.BITPIX
+    );
+
+    if (bitpix === null) {
+      return null;
+    }
+
+    ParsePayload.assertSupportedBITPIX(bitpix);
+
+    const naxis1 = ParseHeader.getFITSItemValue(
+      header,
+      FITSHeaderManager.NAXIS1
+    );
+
+    const naxis2 = ParseHeader.getFITSItemValue(
+      header,
+      FITSHeaderManager.NAXIS2
+    );
+
+    if (naxis1 === null || naxis2 === null) {
+      return null;
+    }
+
+    const dataMinItem =
+      header.findById(FITSHeaderManager.DATAMIN);
+
+    const dataMaxItem =
+      header.findById(FITSHeaderManager.DATAMAX);
+
+    if (dataMinItem === null || dataMaxItem === null) {
+      const [min, max] =
+        ParsePayload.computePhysicalValues(
+          payload,
+          header
         );
-        header.insert(maxitem);
-        header.insert(minitem);
+
+      if (dataMinItem === null && min !== null) {
+        header.insert(
+          new FITSHeaderItem(
+            FITSHeaderManager.DATAMIN,
+            min,
+            "computed by jsfitsio"
+          )
+        );
+      }
+
+      if (dataMaxItem === null && max !== null) {
+        header.insert(
+          new FITSHeaderItem(
+            FITSHeaderManager.DATAMAX,
+            max,
+            "computed by jsfitsio"
+          )
+        );
       }
     }
 
-    const endItem = new FITSHeaderItem('END', "", "");
-    header.insert(endItem)
-    return header
-    // TODO: END tag shall be added here
+    header.insert(
+      new FITSHeaderItem("END", "", "")
+    );
+
+    return header;
   }
 
 
 
-  static computePhysicalValues(rawData: Uint8Array, header: FITSHeaderManager): [number | null, number | null] {
+  static computePhysicalValues(
+    rawData: Uint8Array,
+    header: FITSHeaderManager
+  ): [number | null, number | null] {
+    const bitpix = ParseHeader.getFITSItemValue(
+      header,
+      FITSHeaderManager.BITPIX
+    );
 
-    const BITPIX = ParseHeader.getFITSItemValue(header, FITSHeaderManager.BITPIX)
-    if (BITPIX === null || isNaN(BITPIX)) {
-      return [null, null]
-    }
-    
-    const BLANK = ParseHeader.getFITSItemValue(header, FITSHeaderManager.BLANK)
-    if (BLANK === null || isNaN(BITPIX)) {
-      return [null, null]
-    }
-    
-    let BZERO = ParseHeader.getFITSItemValue(header, FITSHeaderManager.BZERO)
-    if (BZERO === null) {
-      BZERO = 0
-    }
-    
-    let BSCALE = ParseHeader.getFITSItemValue(header, FITSHeaderManager.BSCALE)
-    if (BSCALE === null) {
-      BSCALE = 1
-    }
-    
-    let i = 0;
-
-    const bytesXelem = Math.abs(BITPIX / 8);
-    const pxLength = rawData.byteLength / bytesXelem;
-
-    let min = null;
-    let max = null;
-    let physicalblank = null
-
-    if (BLANK) {
-      physicalblank = ParsePayload.pixel2physicalValue(BLANK, BSCALE, BZERO);
+    if (bitpix === null) {
+      return [null, null];
     }
 
-    while (i < pxLength) {
-      let px_val = ParsePayload.extractPixelValue(rawData, bytesXelem * i, BITPIX);
-      if (px_val === null) {
-        i++;
+    ParsePayload.assertSupportedBITPIX(bitpix);
+
+    const naxis1 = ParseHeader.getFITSItemValue(
+      header,
+      FITSHeaderManager.NAXIS1
+    );
+
+    const naxis2 = ParseHeader.getFITSItemValue(
+      header,
+      FITSHeaderManager.NAXIS2
+    );
+
+    if (naxis1 === null || naxis2 === null) {
+      return [null, null];
+    }
+
+    const blank = ParseHeader.getFITSItemValue(
+      header,
+      FITSHeaderManager.BLANK
+    );
+
+    const bzero =
+      ParseHeader.getFITSItemValue(
+        header,
+        FITSHeaderManager.BZERO
+      ) ?? 0;
+
+    const bscale =
+      ParseHeader.getFITSItemValue(
+        header,
+        FITSHeaderManager.BSCALE
+      ) ?? 1;
+
+    const bytesPerElement = Math.abs(bitpix) / 8;
+    const pixelCount = naxis1 * naxis2;
+
+    const requiredBytes =
+      pixelCount * bytesPerElement;
+
+    if (rawData.byteLength < requiredBytes) {
+      throw new Error(
+        `FITS payload is too short: expected ${requiredBytes} bytes, ` +
+        `received ${rawData.byteLength}.`
+      );
+    }
+
+    const view = new DataView(
+      rawData.buffer,
+      rawData.byteOffset,
+      rawData.byteLength
+    );
+
+    let min: number | null = null;
+    let max: number | null = null;
+
+    for (let i = 0; i < pixelCount; i++) {
+      const rawValue =
+        ParsePayload.extractPixelFromView(
+          view,
+          i * bytesPerElement,
+          bitpix
+        );
+
+      // BLANK applies to integer FITS image data.
+      if (
+        bitpix > 0 &&
+        blank !== null &&
+        rawValue === blank
+      ) {
         continue;
       }
-      let ph_val = ParsePayload.pixel2physicalValue(px_val, BSCALE, BZERO);
-      if (!min) {
-        min = ph_val;
-      }
-      if (!max) {
-        max = ph_val;
+
+      const physicalValue =
+        ParsePayload.pixel2physicalValue(
+          rawValue,
+          bscale,
+          bzero
+        );
+
+      // Floating-point FITS images may contain NaN.
+      if (Number.isNaN(physicalValue)) {
+        continue;
       }
 
-      // check this block if it is still applicable
-      if (physicalblank === null || physicalblank !== ph_val) {
-        if (ph_val !== null && (ph_val < min || min === null)) {
-          min = ph_val;
-        }
-
-        if (ph_val !== null && (ph_val > max || max === null)) {
-          max = ph_val;
-        }
+      if (min === null || physicalValue < min) {
+        min = physicalValue;
       }
-      i++;
+
+      if (max === null || physicalValue > max) {
+        max = physicalValue;
+      }
     }
+
     return [min, max];
   }
 
@@ -141,46 +265,24 @@ export class ParsePayload {
 
   }
 
-  static extractPixelValue(rawData: Uint8Array, offset: number, BITPIX: number): number | null {
-    let px_val = null; // pixel value
-    if (BITPIX == 16) {
-      // 16-bit 2's complement binary integer
-      px_val = ParseUtils.parse16bit2sComplement(
-        rawData[offset],
-        rawData[offset + 1]
-      );
-    } else if (BITPIX == 32) {
-      // IEEE 754 half precision (float16) ??
-      px_val = ParseUtils.parse32bit2sComplement(
-        rawData[offset],
-        rawData[offset + 1],
-        rawData[offset + 2],
-        rawData[offset + 3]
-      );
-    } else if (BITPIX == -32) {
-      // 32-bit IEEE single-precision floating point
-      // px_val = ParseUtils.parse32bitSinglePrecisionFloatingPoint (this._u8data[offset], this._u8data[offset+1], this._u8data[offset+2], this._u8data[offset+3]);
-      px_val = ParseUtils.parseFloatingPointFormat(
-        rawData.slice(offset, offset + 4),
-        8,
-        23
-      );
-    } else if (BITPIX == 64) {
-      // 64-bit 2's complement binary integer
-      throw new Error(
-        "BITPIX=64 -> 64-bit 2's complement binary integer NOT supported yet."
-      );
-    } else if (BITPIX == -64) {
-      // 64-bit IEEE double-precision floating point
-      //https://babbage.cs.qc.cuny.edu/ieee-754.old/Decimal.html
-      px_val = ParseUtils.parseFloatingPointFormat(
-        rawData.slice(offset, offset + 8),
-        11,
-        52
-      );
-    }
+  static extractPixelValue(
+    rawData: Uint8Array,
+    offset: number,
+    bitpix: number
+  ): number {
+    ParsePayload.assertSupportedBITPIX(bitpix);
 
-    return px_val;
+    const view = new DataView(
+      rawData.buffer,
+      rawData.byteOffset,
+      rawData.byteLength
+    );
+
+    return ParsePayload.extractPixelFromView(
+      view,
+      offset,
+      bitpix
+    );
   }
 
 }
