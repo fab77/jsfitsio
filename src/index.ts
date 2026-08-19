@@ -26,3 +26,8 @@ export type {
   FITSAsciiTableColumn,
   FITSAsciiTableColumnType,
 } from "./model/FITSAsciiTableColumn.js";
+
+export type {
+  FITSTableCellValue,
+  FITSComplex,
+} from "./model/FITSTableData.js";

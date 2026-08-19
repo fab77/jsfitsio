@@ -1,10 +1,12 @@
 import { expect, test } from "@jest/globals";
 
+import { suppressConsoleError, suppressConsoleLog } from "./helpers/console";
+
 import { FITSParser } from "../src/FITSParser";
-import { FITSParsed } from "../src/model/FITSParsed";
 import { FITSHeaderManager } from "../src/model/FITSHeaderManager";
 import { header, data } from "./inputs/Npix47180";
 import { startFITSFixtureServer } from "./helpers/fits-fixture-server";
+import { FITSParsed } from "../src/model/FITSParsed";
 
 test("[parse_hips_fits_1] Parse FITS from local HTTP server", async () => {
   const server = await startFITSFixtureServer();
@@ -115,21 +117,32 @@ test("[parse_hips_fits_3] Create local FITS from FITS loaded over local HTTP", a
 }, 15000);
 
 test("[parse_http_failure] Should return null if HTTP fetch fails", async () => {
+  const consoleLogSpy = suppressConsoleLog();
+
   const server = await startFITSFixtureServer();
 
   try {
     const fits = await FITSParser.loadFITS(`${server.baseUrl}/not-found.fits`);
 
     expect(fits).toBeNull();
+    expect(consoleLogSpy).toHaveBeenCalled();
   } finally {
+    consoleLogSpy.mockRestore();
     await server.close();
   }
 }, 15000);
 
 test("[parse_filesystem_failure] Should return null if local filesystem load fails", async () => {
-  const fits = await FITSParser.loadFITS("./notexistent.fits");
+  const consoleErrorSpy = suppressConsoleError();
 
-  expect(fits).toBeNull();
+  try {
+    const fits = await FITSParser.loadFITS("./notexistent.fits");
+
+    expect(fits).toBeNull();
+    expect(consoleErrorSpy).toHaveBeenCalled();
+  } finally {
+    consoleErrorSpy.mockRestore();
+  }
 }, 15000);
 
 test("[parse_mercator_fits_1] Parse FITS from filesystem", async () => {
