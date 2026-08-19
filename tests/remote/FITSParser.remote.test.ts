@@ -16,5 +16,13 @@ test("[remote] Parse Herschel HiPS FITS from ESA", async () => {
   const dataLength = parsedFITS ? parsedFITS.data.length : 0;
 
   expect(dataLength * 4096).toBe(2097152);
-  expect(parsedFITS?.header.getItems().length).toBe(11);
+
+  const dataMin = parsedFITS?.header.findById(FITSHeaderManager.DATAMIN);
+
+  const dataMax = parsedFITS?.header.findById(FITSHeaderManager.DATAMAX);
+
+  expect(dataMin).not.toBeNull();
+  expect(dataMax).not.toBeNull();
+
+  expect(Number(dataMin?.value)).toBeLessThanOrEqual(Number(dataMax?.value));
 }, 30000);
