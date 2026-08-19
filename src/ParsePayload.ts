@@ -12,7 +12,7 @@ import { FITSHeaderItem } from "./model/FITSHeaderItem.js";
 import { FITSHeaderManager } from "./model/FITSHeaderManager.js";
 import { FITSImageTypedArray } from "./model/FITSImageData.js";
 import { ParseHeader } from "./ParseHeader.js";
-import { ParseUtils } from "./ParseUtils.js";
+import { FITSImageUtils } from "./FITSImageUtils.js";
 
 export class ParsePayload {
   static readonly SUPPORTED_BITPIX = new Set([8, 16, 32, 64, -32, -64]);
@@ -79,18 +79,13 @@ export class ParsePayload {
 
     ParsePayload.assertSupportedBITPIX(bitpix);
 
-    const naxis1 = ParseHeader.getFITSItemValue(
-      header,
-      FITSHeaderManager.NAXIS1,
-    );
+    const shape = FITSImageUtils.getShape(header);
 
-    const naxis2 = ParseHeader.getFITSItemValue(
-      header,
-      FITSHeaderManager.NAXIS2,
-    );
-
-    if (naxis1 === null || naxis2 === null) {
-      return null;
+    /*
+     * NAXIS=0 is a valid FITS HDU.
+     */
+    if (shape.length === 0 || payload.byteLength === 0) {
+      return header;
     }
 
     const dataMinItem = header.findById(FITSHeaderManager.DATAMIN);
@@ -98,30 +93,36 @@ export class ParsePayload {
     const dataMaxItem = header.findById(FITSHeaderManager.DATAMAX);
 
     if (dataMinItem === null || dataMaxItem === null) {
-      const [min, max] = ParsePayload.computePhysicalValues(payload, header);
+      try {
+        const [min, max] = ParsePayload.computePhysicalValues(payload, header);
 
-      if (dataMinItem === null && min !== null) {
-        header.insert(
-          new FITSHeaderItem(
-            FITSHeaderManager.DATAMIN,
-            min,
-            "computed by jsfitsio",
-          ),
-        );
-      }
+        if (dataMinItem === null && min !== null) {
+          header.insert(
+            new FITSHeaderItem(
+              FITSHeaderManager.DATAMIN,
+              min,
+              "computed by jsfitsio",
+            ),
+          );
+        }
 
-      if (dataMaxItem === null && max !== null) {
-        header.insert(
-          new FITSHeaderItem(
-            FITSHeaderManager.DATAMAX,
-            max,
-            "computed by jsfitsio",
-          ),
-        );
+        if (dataMaxItem === null && max !== null) {
+          header.insert(
+            new FITSHeaderItem(
+              FITSHeaderManager.DATAMAX,
+              max,
+              "computed by jsfitsio",
+            ),
+          );
+        }
+      } catch (error) {
+        if (bitpix === 64 && error instanceof RangeError) {
+          return header;
+        }
+
+        throw error;
       }
     }
-
-    header.insert(new FITSHeaderItem("END", "", ""));
 
     return header;
   }
@@ -230,17 +231,11 @@ export class ParsePayload {
 
     ParsePayload.assertSupportedBITPIX(bitpix);
 
-    const naxis1 = ParseHeader.getFITSItemValue(
-      header,
-      FITSHeaderManager.NAXIS1,
-    );
+    const shape = FITSImageUtils.getShape(header);
 
-    const naxis2 = ParseHeader.getFITSItemValue(
-      header,
-      FITSHeaderManager.NAXIS2,
-    );
+    const pixelCount = FITSImageUtils.getElementCount(shape);
 
-    if (naxis1 === null || naxis2 === null) {
+    if (pixelCount === 0) {
       return [null, null];
     }
 
@@ -253,7 +248,6 @@ export class ParsePayload {
       ParseHeader.getFITSItemValue(header, FITSHeaderManager.BSCALE) ?? 1;
 
     const bytesPerElement = Math.abs(bitpix) / 8;
-    const pixelCount = naxis1 * naxis2;
 
     const requiredBytes = pixelCount * bytesPerElement;
 

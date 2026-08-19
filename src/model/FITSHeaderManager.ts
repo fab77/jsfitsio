@@ -20,10 +20,22 @@ export class FITSHeaderManager {
   static ORIGIN = "ORIGIN";
   static COMMENT = "COMMENT";
   static XTENSION = "XTENSION";
+  static PCOUNT = "PCOUNT";
+  static GCOUNT = "GCOUNT";
+  static TFIELDS = "TFIELDS";
+  static TFORM = "TFORM";
+  static TTYPE = "TTYPE";
+  static TUNIT = "TUNIT";
+  static TSCAL = "TSCAL";
+  static TZERO = "TZERO";
+  static TNULL = "TNULL";
 
   private items: FITSHeaderItem[] = [];
 
-  constructor() {
+  constructor(initializeDefaults = true) {
+    if (!initializeDefaults) {
+      return;
+    }
     this.items[0] = new FITSHeaderItem(FITSHeaderManager.SIMPLE, "T", "");
     this.items[1] = new FITSHeaderItem(FITSHeaderManager.BITPIX, "", "");
     this.items[2] = new FITSHeaderItem(FITSHeaderManager.NAXIS, 2, "");
@@ -74,6 +86,19 @@ export class FITSHeaderManager {
     return item;
   }
 
+  static tableFieldKey(
+    prefix: "TFORM" | "TTYPE" | "TUNIT" | "TSCAL" | "TZERO" | "TNULL",
+    index: number,
+  ): string {
+    if (!Number.isInteger(index) || index < 1) {
+      throw new RangeError(
+        `FITS table field index must be >= 1, received ${index}.`,
+      );
+    }
+
+    return `${prefix}${index}`;
+  }
+  
   static naxisKey(axis: number): string {
     if (!Number.isInteger(axis) || axis < 1) {
       throw new RangeError(

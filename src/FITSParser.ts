@@ -8,6 +8,12 @@ import { FITSFile } from "./model/FITSFile.js";
 import { PrimaryHDU } from "./model/PrimaryHDU.js";
 import { FITSImageUtils } from "./FITSImageUtils.js";
 import { ImageHDU } from "./model/ImageHDU.js";
+import { BinaryTableHDU } from "./model/BinaryTableHDU.js";
+import { FITSBinaryTableUtils } from "./FITSBinaryTableUtils.js";
+import {
+  FITSBinaryTableColumn,
+  FITSBinaryTableColumnType,
+} from "./model/FITSBinaryTableColumn.js";
 
 export class FITSParser {
   static async loadFITS(path: string): Promise<FITSParsed | null> {
@@ -108,9 +114,34 @@ export class FITSParser {
           break;
         }
 
-        case "BINTABLE":
+        case "BINTABLE": {
+          const dataByteLength =
+            FITSParser.getBinaryTablePayloadByteLength(header);
+
+          if (dataOffset + dataByteLength > rawData.byteLength) {
+            throw new Error(`Invalid BINTABLE HDU ${hduIndex}.`);
+          }
+
+          const rawPayload = rawData.subarray(
+            dataOffset,
+            dataOffset + dataByteLength,
+          );
+
+          const hdu = FITSParser.createBinaryTableHDU(
+            header,
+            rawPayload,
+            dataOffset,
+            dataByteLength,
+          );
+
+          fitsFile.addHDU(hdu);
+
+          offset = dataOffset + FITSParser.getPaddedByteLength(dataByteLength);
+
+          break;
+        }
         case "TABLE":
-          throw new Error(`FITS extension ${hduType} is not supported yet.`);
+          throw new Error("ASCII FITS TABLE support is not implemented yet.");
 
         default:
           throw new Error(`Unsupported FITS HDU type at index ${hduIndex}.`);
@@ -176,7 +207,6 @@ export class FITSParser {
     }
   }
 
-
   private static createImageHDU(
     header: FITSHeaderManager,
     rawPayload: Uint8Array,
@@ -184,14 +214,9 @@ export class FITSParser {
     dataByteLength: number,
     primary: boolean,
   ): PrimaryHDU | ImageHDU {
-    const finalHeader = ParsePayload.computePhysicalMinAndMax(
-      header,
-      rawPayload,
-    );
-
-    if (finalHeader === null) {
-      throw new Error("Unable to parse FITS image HDU.");
-    }
+    
+    const finalHeader =
+      ParsePayload.computePhysicalMinAndMax(header, rawPayload) ?? header;
 
     const bitpix = ParseHeader.getFITSItemValue(
       finalHeader,
@@ -255,6 +280,177 @@ export class FITSParser {
     const bytesPerElement = Math.abs(bitpix) / 8;
 
     return elementCount * bytesPerElement;
+  }
+
+  private static getBinaryTablePayloadByteLength(
+    header: FITSHeaderManager,
+  ): number {
+    const rowByteLength = ParseHeader.getFITSItemValue(
+      header,
+      FITSHeaderManager.NAXIS1,
+    );
+
+    const rowCount = ParseHeader.getFITSItemValue(
+      header,
+      FITSHeaderManager.NAXIS2,
+    );
+
+    const pcount =
+      ParseHeader.getFITSItemValue(header, FITSHeaderManager.PCOUNT) ?? 0;
+
+    if (rowByteLength === null || rowCount === null) {
+      throw new Error("BINTABLE requires NAXIS1 and NAXIS2.");
+    }
+
+    return rowByteLength * rowCount + pcount;
+  }
+
+  private static getBinaryTableColumns(
+    header: FITSHeaderManager,
+  ): FITSBinaryTableColumn[] {
+    const fieldCount = ParseHeader.getFITSItemValue(
+      header,
+      FITSHeaderManager.TFIELDS,
+    );
+
+    if (fieldCount === null) {
+      throw new Error("BINTABLE requires TFIELDS.");
+    }
+
+    const columns: FITSBinaryTableColumn[] = [];
+
+    let byteOffset = 0;
+
+    for (let index = 1; index <= fieldCount; index++) {
+      const tform = ParseHeader.getFITSItemStringValue(
+        header,
+        FITSHeaderManager.tableFieldKey("TFORM", index),
+      );
+
+      if (tform === null) {
+        throw new Error(`Missing TFORM${index}.`);
+      }
+
+      const parsed = FITSBinaryTableUtils.parseTFORM(tform);
+
+      const name = ParseHeader.getFITSItemStringValue(
+        header,
+        FITSHeaderManager.tableFieldKey("TTYPE", index),
+      );
+
+      const unit = ParseHeader.getFITSItemStringValue(
+        header,
+        FITSHeaderManager.tableFieldKey("TUNIT", index),
+      );
+
+      columns.push({
+        index,
+        name,
+        format: tform,
+        type: FITSParser.mapBinaryType(parsed.code),
+
+        repeat: parsed.repeat,
+
+        byteOffset,
+        byteWidth: parsed.byteWidth,
+
+        unit,
+
+        scale:
+          ParseHeader.getFITSItemValue(
+            header,
+            FITSHeaderManager.tableFieldKey("TSCAL", index),
+          ) ?? 1,
+
+        zero:
+          ParseHeader.getFITSItemValue(
+            header,
+            FITSHeaderManager.tableFieldKey("TZERO", index),
+          ) ?? 0,
+
+        nullValue: ParseHeader.getFITSItemValue(
+          header,
+          FITSHeaderManager.tableFieldKey("TNULL", index),
+        ),
+      });
+
+      byteOffset += parsed.byteWidth;
+    }
+
+    return columns;
+  }
+
+  private static mapBinaryType(code: string): FITSBinaryTableColumnType {
+    switch (code.toUpperCase()) {
+      case "L":
+        return "LOGICAL";
+      case "X":
+        return "BIT";
+      case "B":
+        return "UINT8";
+      case "I":
+        return "INT16";
+      case "J":
+        return "INT32";
+      case "K":
+        return "INT64";
+      case "A":
+        return "CHAR";
+      case "E":
+        return "FLOAT32";
+      case "D":
+        return "FLOAT64";
+      case "C":
+        return "COMPLEX64";
+      case "M":
+        return "COMPLEX128";
+      default:
+        return "UNKNOWN";
+    }
+  }
+  private static createBinaryTableHDU(
+    header: FITSHeaderManager,
+    rawPayload: Uint8Array,
+    dataOffset: number,
+    dataByteLength: number,
+  ): BinaryTableHDU {
+    const rowByteLength = ParseHeader.getFITSItemValue(
+      header,
+      FITSHeaderManager.NAXIS1,
+    );
+
+    const rowCount = ParseHeader.getFITSItemValue(
+      header,
+      FITSHeaderManager.NAXIS2,
+    );
+
+    if (rowByteLength === null || rowCount === null) {
+      throw new Error("Invalid BINTABLE header.");
+    }
+
+    const columns = FITSParser.getBinaryTableColumns(header);
+
+    const columnsByteWidth = columns.reduce(
+      (sum, column) => sum + column.byteWidth,
+      0,
+    );
+
+    if (columnsByteWidth !== rowByteLength) {
+      throw new Error(
+        `BINTABLE columns occupy ${columnsByteWidth} bytes per row, ` +
+          `but NAXIS1=${rowByteLength}.`,
+      );
+    }
+
+    return new BinaryTableHDU(
+      header,
+      rawPayload,
+      dataOffset,
+      dataByteLength,
+      rowByteLength,
+      rowCount,
+      columns,
+    );
   }
 
   private static createMatrix(

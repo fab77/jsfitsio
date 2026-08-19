@@ -8,7 +8,13 @@ import { join } from "node:path";
 import { FITSParser } from "../src/FITSParser";
 import { FITSHeaderManager } from "../src/model/FITSHeaderManager";
 
-import { createSyntheticFits, createSyntheticImageHDU, createSyntheticMultiHDUFits } from "./helpers/synthetic-fits";
+import {
+  createSyntheticFits,
+  createSyntheticImageHDU,
+  createSyntheticMultiHDUFits,
+  createSyntheticBinaryTableHDU,
+} from "./helpers/synthetic-fits";
+import { BinaryTableHDU } from "../src/model/BinaryTableHDU";
 
 let temporaryDirectories: string[] = [];
 
@@ -280,4 +286,93 @@ describe("FITSParser synthetic FITS", () => {
 
     expect(file.getHDU(2)?.type).toBe("IMAGE");
   });
+
+  test("loads a BINTABLE extension", async () => {
+    const primary = createSyntheticImageHDU({
+      primary: true,
+      shape: [],
+      pixels: [],
+    });
+
+    const table = createSyntheticBinaryTableHDU({
+      columns: [
+        {
+          name: "ID",
+          format: "1J",
+        },
+        {
+          name: "FLUX",
+          format: "1E",
+        },
+      ],
+
+      rows: [createBinaryTableRow(1, 1.5), createBinaryTableRow(2, 3.25)],
+    });
+
+    const fits = createSyntheticMultiHDUFits([primary, table]);
+
+    const path = await writeTemporaryFits(fits);
+
+    const file = await FITSParser.loadFITSFile(path);
+
+    expect(file).not.toBeNull();
+
+    if (!file) {
+      throw new Error("FITS file unexpectedly null");
+    }
+
+    expect(file.length).toBe(2);
+
+    expect(file.getHDU(0)?.type).toBe("PRIMARY");
+
+    const hdu = file.getHDU(1);
+
+    expect(hdu).toBeInstanceOf(BinaryTableHDU);
+
+    if (!(hdu instanceof BinaryTableHDU)) {
+      throw new Error("Expected second HDU to be a BinaryTableHDU");
+    }
+
+    expect(hdu.type).toBe("BINTABLE");
+
+    expect(hdu.rowCount).toBe(2);
+
+    expect(hdu.rowByteLength).toBe(8);
+
+    expect(hdu.columnCount).toBe(2);
+
+    expect(hdu.columns[0].name).toBe("ID");
+
+    expect(hdu.columns[0].format).toBe("1J");
+
+    expect(hdu.columns[0].type).toBe("INT32");
+
+    expect(hdu.columns[0].byteOffset).toBe(0);
+
+    expect(hdu.columns[0].byteWidth).toBe(4);
+
+    expect(hdu.columns[1].name).toBe("FLUX");
+
+    expect(hdu.columns[1].format).toBe("1E");
+
+    expect(hdu.columns[1].type).toBe("FLOAT32");
+
+    expect(hdu.columns[1].byteOffset).toBe(4);
+
+    expect(hdu.columns[1].byteWidth).toBe(4);
+
+    expect(hdu.dataByteLength).toBe(16);
+  });
 });
+
+function createBinaryTableRow(id: number, flux: number): Uint8Array {
+  const buffer = new ArrayBuffer(8);
+
+  const view = new DataView(buffer);
+
+  view.setInt32(0, id, false);
+
+  view.setFloat32(4, flux, false);
+
+  return new Uint8Array(buffer);
+}

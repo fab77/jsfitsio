@@ -71,7 +71,7 @@ export class ParseHeader {
     const decoder = new TextDecoder("ascii");
     const headerLength = ParseHeader.getHeaderByteLength(rawData, startOffset);
 
-    const header = new FITSHeaderManager();
+    const header = new FITSHeaderManager(false);
 
     for (
       let offset = startOffset;

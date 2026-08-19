@@ -19,6 +19,16 @@ export interface SyntheticFitsOptions {
   pixels?: Array<number | bigint>;
 }
 
+export interface SyntheticBinaryTableColumn {
+  name: string;
+  format: string;
+}
+
+export interface SyntheticBinaryTableHDUOptions {
+  columns: SyntheticBinaryTableColumn[];
+  rows: Uint8Array[];
+}
+
 export interface SyntheticImageHDUOptions {
   primary?: boolean;
 
@@ -47,25 +57,15 @@ export function createSyntheticImageHDU(
   }
 
   if (
-    !shape.every(
-      (dimension) =>
-        Number.isInteger(dimension) &&
-        dimension >= 0,
-    )
+    !shape.every((dimension) => Number.isInteger(dimension) && dimension >= 0)
   ) {
-    throw new Error(
-      `Invalid FITS shape: [${shape.join(", ")}]`,
-    );
+    throw new Error(`Invalid FITS shape: [${shape.join(", ")}]`);
   }
 
   const expectedPixelCount =
     shape.length === 0
       ? 0
-      : shape.reduce(
-          (total, dimension) =>
-            total * dimension,
-          1,
-        );
+      : shape.reduce((total, dimension) => total * dimension, 1);
 
   if (pixels.length !== expectedPixelCount) {
     throw new Error(
@@ -76,21 +76,9 @@ export function createSyntheticImageHDU(
   const cards: string[] = [];
 
   if (primary) {
-    cards.push(
-      createValueCard(
-        "SIMPLE",
-        true,
-        "conforms to FITS standard",
-      ),
-    );
+    cards.push(createValueCard("SIMPLE", true, "conforms to FITS standard"));
   } else {
-    cards.push(
-      createValueCard(
-        "XTENSION",
-        "IMAGE   ",
-        "Image extension",
-      ),
-    );
+    cards.push(createValueCard("XTENSION", "IMAGE   ", "Image extension"));
   }
 
   cards.push(
@@ -98,144 +86,68 @@ export function createSyntheticImageHDU(
     createValueCard("NAXIS", shape.length),
   );
 
-  shape.forEach(
-    (dimension, index) => {
-      cards.push(
-        createValueCard(
-          `NAXIS${index + 1}`,
-          dimension,
-        ),
-      );
-    },
-  );
+  shape.forEach((dimension, index) => {
+    cards.push(createValueCard(`NAXIS${index + 1}`, dimension));
+  });
 
   /*
    * FITS image extensions require PCOUNT and GCOUNT.
    */
   if (!primary) {
-    cards.push(
-      createValueCard(
-        "PCOUNT",
-        0,
-      ),
-    );
+    cards.push(createValueCard("PCOUNT", 0));
 
-    cards.push(
-      createValueCard(
-        "GCOUNT",
-        1,
-      ),
-    );
+    cards.push(createValueCard("GCOUNT", 1));
   }
 
-  const firstCardInLastBlock =
-    (headerBlocks - 1) *
-    CARDS_PER_BLOCK;
+  const firstCardInLastBlock = (headerBlocks - 1) * CARDS_PER_BLOCK;
 
-  while (
-    cards.length <=
-    firstCardInLastBlock
-  ) {
-    cards.push(
-      createCommentCard(
-        `synthetic header filler ${cards.length}`,
-      ),
-    );
+  while (cards.length <= firstCardInLastBlock) {
+    cards.push(createCommentCard(`synthetic header filler ${cards.length}`));
   }
 
-  cards.push(
-    createEndCard(),
-  );
+  cards.push(createEndCard());
 
-  const headerText =
-    cards.join("");
+  const headerText = cards.join("");
 
-  const headerByteLength =
-    headerBlocks *
-    FITS_BLOCK_SIZE;
+  const headerByteLength = headerBlocks * FITS_BLOCK_SIZE;
 
-  if (
-    headerText.length >
-    headerByteLength
-  ) {
-    throw new Error(
-      `Header does not fit into ${headerBlocks} FITS block(s)`,
-    );
+  if (headerText.length > headerByteLength) {
+    throw new Error(`Header does not fit into ${headerBlocks} FITS block(s)`);
   }
 
-  const paddedHeader =
-    headerText.padEnd(
-      headerByteLength,
-      " ",
-    );
+  const paddedHeader = headerText.padEnd(headerByteLength, " ");
 
-  const encoder =
-    new TextEncoder();
+  const encoder = new TextEncoder();
 
-  const headerBytes =
-    encoder.encode(
-      paddedHeader,
-    );
+  const headerBytes = encoder.encode(paddedHeader);
 
-  const payload =
-    createPayload(
-      bitpix,
-      pixels,
-    );
+  const payload = createPayload(bitpix, pixels);
 
   const paddedPayloadLength =
     payload.byteLength === 0
       ? 0
-      : Math.ceil(
-          payload.byteLength /
-            FITS_BLOCK_SIZE,
-        ) *
-        FITS_BLOCK_SIZE;
+      : Math.ceil(payload.byteLength / FITS_BLOCK_SIZE) * FITS_BLOCK_SIZE;
 
-  const result =
-    new Uint8Array(
-      headerBytes.byteLength +
-        paddedPayloadLength,
-    );
+  const result = new Uint8Array(headerBytes.byteLength + paddedPayloadLength);
 
-  result.set(
-    headerBytes,
-    0,
-  );
+  result.set(headerBytes, 0);
 
-  result.set(
-    payload,
-    headerBytes.byteLength,
-  );
+  result.set(payload, headerBytes.byteLength);
 
   return result;
 }
 
-export function createSyntheticMultiHDUFits(
-  hdus: Uint8Array[],
-): Uint8Array {
-  const totalLength =
-    hdus.reduce(
-      (sum, hdu) =>
-        sum + hdu.byteLength,
-      0,
-    );
+export function createSyntheticMultiHDUFits(hdus: Uint8Array[]): Uint8Array {
+  const totalLength = hdus.reduce((sum, hdu) => sum + hdu.byteLength, 0);
 
-  const result =
-    new Uint8Array(
-      totalLength,
-    );
+  const result = new Uint8Array(totalLength);
 
   let offset = 0;
 
   for (const hdu of hdus) {
-    result.set(
-      hdu,
-      offset,
-    );
+    result.set(hdu, offset);
 
-    offset +=
-      hdu.byteLength;
+    offset += hdu.byteLength;
   }
 
   return result;
@@ -476,3 +388,135 @@ export const FITS_TEST_CONSTANTS = {
   BLOCK_SIZE: FITS_BLOCK_SIZE,
   CARDS_PER_BLOCK,
 };
+
+function parseSyntheticTFORMWidth(format: string): number {
+  const normalized = format
+    .trim()
+    .replace(/^'/, "")
+    .replace(/'$/, "")
+    .toUpperCase();
+
+  const match = normalized.match(/^(\d*)([LXBIJKAEDCM])$/);
+
+  if (!match) {
+    throw new Error(`Unsupported synthetic TFORM: ${format}`);
+  }
+
+  const repeat = match[1] ? Number(match[1]) : 1;
+
+  const code = match[2];
+
+  switch (code) {
+    case "L":
+    case "B":
+    case "A":
+      return repeat;
+
+    case "X":
+      return Math.ceil(repeat / 8);
+
+    case "I":
+      return repeat * 2;
+
+    case "J":
+    case "E":
+      return repeat * 4;
+
+    case "K":
+    case "D":
+    case "C":
+      return repeat * 8;
+
+    case "M":
+      return repeat * 16;
+
+    default:
+      throw new Error(`Unsupported synthetic TFORM: ${format}`);
+  }
+}
+
+export function createSyntheticBinaryTableHDU(
+  options: SyntheticBinaryTableHDUOptions,
+): Uint8Array {
+  const { columns, rows } = options;
+
+  const declaredRowByteLength = columns.reduce(
+    (sum, column) => sum + parseSyntheticTFORMWidth(column.format),
+    0,
+  );
+
+  const rowByteLength =
+    rows.length > 0 ? rows[0].byteLength : declaredRowByteLength;
+
+  if (rowByteLength !== declaredRowByteLength) {
+    throw new Error(
+      `BINTABLE row length mismatch: columns define ` +
+        `${declaredRowByteLength} bytes, but rows contain ` +
+        `${rowByteLength} bytes.`,
+    );
+  }
+
+  for (const row of rows) {
+    if (row.byteLength !== rowByteLength) {
+      throw new Error("All BINTABLE rows must have equal length.");
+    }
+  }
+
+  const cards: string[] = [
+    createValueCard("XTENSION", "BINTABLE"),
+
+    createValueCard("BITPIX", 8),
+
+    createValueCard("NAXIS", 2),
+
+    createValueCard("NAXIS1", rowByteLength),
+
+    createValueCard("NAXIS2", rows.length),
+
+    createValueCard("PCOUNT", 0),
+
+    createValueCard("GCOUNT", 1),
+
+    createValueCard("TFIELDS", columns.length),
+  ];
+
+  columns.forEach((column, index) => {
+    cards.push(createValueCard(`TTYPE${index + 1}`, column.name));
+
+    cards.push(createValueCard(`TFORM${index + 1}`, column.format));
+  });
+
+  cards.push(createEndCard());
+
+  const headerText = cards.join("");
+
+  const headerByteLength =
+    Math.ceil(headerText.length / FITS_BLOCK_SIZE) * FITS_BLOCK_SIZE;
+
+  const paddedHeader = headerText.padEnd(headerByteLength, " ");
+
+  const encoder = new TextEncoder();
+
+  const headerBytes = encoder.encode(paddedHeader);
+
+  const payloadByteLength = rowByteLength * rows.length;
+
+  const paddedPayloadLength =
+    payloadByteLength === 0
+      ? 0
+      : Math.ceil(payloadByteLength / FITS_BLOCK_SIZE) * FITS_BLOCK_SIZE;
+
+  const result = new Uint8Array(headerBytes.byteLength + paddedPayloadLength);
+
+  result.set(headerBytes, 0);
+
+  let payloadOffset = headerBytes.byteLength;
+
+  for (const row of rows) {
+    result.set(row, payloadOffset);
+
+    payloadOffset += row.byteLength;
+  }
+
+  return result;
+}

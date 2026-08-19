@@ -138,7 +138,16 @@ test("[parse_mercator_fits_1] Parse FITS from filesystem", async () => {
   const parsedFITS = await FITSParser.loadFITS(path);
 
   expect(parsedFITS).not.toBeNull();
-  expect(parsedFITS?.header).toBeInstanceOf(FITSHeaderManager);
-  expect(parsedFITS?.data).toBeInstanceOf(Array);
-  expect(parsedFITS?.header.getItems().length).toBe(20);
+
+  expect(parsedFITS?.header.findById(FITSHeaderManager.BITPIX)).not.toBeNull();
+
+  expect(parsedFITS?.header.findById(FITSHeaderManager.NAXIS)).not.toBeNull();
+
+  expect(parsedFITS?.header.findById(FITSHeaderManager.NAXIS1)).not.toBeNull();
+
+  expect(parsedFITS?.header.findById(FITSHeaderManager.NAXIS2)).not.toBeNull();
+
+  expect(parsedFITS?.header.findById(FITSHeaderManager.DATAMIN)).not.toBeNull();
+
+  expect(parsedFITS?.header.findById(FITSHeaderManager.DATAMAX)).not.toBeNull();
 }, 15000);
