@@ -1,3 +1,5 @@
+examples-test/*.fits
+
 dist/
 lib-esm/
 *.tgz

@@ -11,49 +11,105 @@ import { FITSHeaderManager } from "./model/FITSHeaderManager.js";
  */
 
 export class ParseHeader {
+  static readonly CARD_SIZE = 80;
+  static readonly BLOCK_SIZE = 2880;
 
-  static getFITSItemValue(header: FITSHeaderManager, key: string): number | null {
-    const item = header.findById(key)
-    let VALUE = null
-    if (item) {
-      VALUE = Number(item.value)
+  static getFITSItemStringValue(
+    header: FITSHeaderManager,
+    key: string,
+  ): string | null {
+    const item = header.findById(key);
+
+    if (!item) {
+      return null;
     }
-    return VALUE
+
+    return String(item.value).trim().replace(/^'/, "").replace(/'$/, "").trim();
   }
   
-  static parse(rawdata: Uint8Array): FITSHeaderManager {
-    // only one header block (2880) allowed atm.
-    // TODO handle multiple header blocks
-    // let headerByteData = new Uint8Array(rawdata, 0, 2880);
+  static getFITSItemValue(
+    header: FITSHeaderManager,
+    key: string,
+  ): number | null {
+    const item = header.findById(key);
 
-    const textDecoder = new TextDecoder('ascii');
-    const headerSize = 2880; // FITS headers are in 2880-byte blocks
-    const headerText = textDecoder.decode(rawdata.slice(0, headerSize));
-
-    const header: FITSHeaderManager = new FITSHeaderManager();
-    const lines = headerText.match(/.{1,80}/g) || [];
-    for (const line of lines) {
-
-      const key = line.slice(0, 8).trim();
-      let value: string | number
-      let comment = ""
-
-      if (key && key !== 'END') {
-        const rawValue = line.slice(10).trim().split('/')[0].trim();
-        if (isNaN(Number(rawValue))) {
-          value = rawValue;
-        } else {
-          value = Number(rawValue);
-        }
-        if (line.includes('/')) {
-          comment = line.slice(10).trim().split('/')[1].trim();
-        }
-
-        const item = new FITSHeaderItem(key, value, comment);
-        header.insert(item)
-      }
+    if (!item) {
+      return null;
     }
-    return header;
+
+    const value = Number(item.value);
+    return Number.isNaN(value) ? null : value;
   }
 
+  /**
+   * Returns the complete FITS header size, including padding
+   * up to the next 2880-byte boundary.
+   */
+  static getHeaderByteLength(rawData: Uint8Array, startOffset = 0): number {
+    const decoder = new TextDecoder("ascii");
+
+    for (
+      let offset = startOffset;
+      offset + ParseHeader.CARD_SIZE <= rawData.byteLength;
+      offset += ParseHeader.CARD_SIZE
+    ) {
+      const key = decoder.decode(rawData.subarray(offset, offset + 8)).trim();
+
+      if (key === "END") {
+        const consumed = offset + ParseHeader.CARD_SIZE - startOffset;
+
+        return (
+          Math.ceil(consumed / ParseHeader.BLOCK_SIZE) * ParseHeader.BLOCK_SIZE
+        );
+      }
+    }
+
+    throw new Error("Invalid FITS header: END card not found.");
+  }
+
+  static parse(rawData: Uint8Array, startOffset = 0): FITSHeaderManager {
+    const decoder = new TextDecoder("ascii");
+    const headerLength = ParseHeader.getHeaderByteLength(rawData, startOffset);
+
+    const header = new FITSHeaderManager(false);
+
+    for (
+      let offset = startOffset;
+      offset < startOffset + headerLength;
+      offset += ParseHeader.CARD_SIZE
+    ) {
+      const line = decoder.decode(
+        rawData.subarray(offset, offset + ParseHeader.CARD_SIZE),
+      );
+
+      const key = line.slice(0, 8).trim();
+
+      if (key === "END") {
+        break;
+      }
+
+      if (!key) {
+        continue;
+      }
+
+      let value: string | number;
+      let comment = "";
+
+      const rawValue = line.slice(10).trim().split("/")[0].trim();
+
+      if (Number.isNaN(Number(rawValue))) {
+        value = rawValue;
+      } else {
+        value = Number(rawValue);
+      }
+
+      if (line.includes("/")) {
+        comment = line.slice(10).trim().split("/")[1]?.trim() ?? "";
+      }
+
+      header.insert(new FITSHeaderItem(key, value, comment));
+    }
+
+    return header;
+  }
 }

@@ -1,7 +1,7 @@
 {
   "name": "jsfitsio",
   "description": "JavaScript/TypeScript library for reading and writing FITS files in Node.js and the browser.",
-  "version": "2.1.2",
+  "version": "3.0.0-snapshot",
   "keywords": [
     "fits",
     "fits-io",
@@ -65,7 +65,7 @@
   },
   "devDependencies": {
     "@types/jest": "^29.0.0",
-    "@types/node": "^22.0.0",
+    "@types/node": "^22.20.1",
     "jest": "^29.0.0",
     "shx": "^0.3.4",
     "terser-webpack-plugin": "^5.6.1",
