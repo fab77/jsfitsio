@@ -5,7 +5,7 @@
     "module": "NodeNext",
     "target": "ES2022",  // Modern browsers support all ES6 features, so ES6 is a good choice. 
     "esModuleInterop": true,
-    
+    "types": ["node"],
     // "lib": ["es6", "dom"],
     "lib": ["ES2022", "DOM"],
     "rootDir": "src",
@@ -13,6 +13,7 @@
     "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
     "sourceMap": true,
+    "inlineSources": true,
     "declaration": true,
     "declarationMap": true,
     "strict": true,

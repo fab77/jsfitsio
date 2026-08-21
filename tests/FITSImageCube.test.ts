@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "@jest/globals";
 import { FITSParser } from "../src/FITSParser";
-import { createSyntheticFits } from "./helpers/synthetic-fits";
+import { createSyntheticCubeFits, createSyntheticFits } from "./helpers/synthetic-fits";
 
 import {
   cleanupTemporaryFits,
@@ -104,5 +104,30 @@ describe("FITS image cubes", () => {
     expect(data).toBeInstanceOf(BigInt64Array);
 
     expect(Array.from(data as BigInt64Array)).toEqual(pixels);
+  });
+
+  test("creates and loads a synthetic FITS cube", async () => {
+    const fits = createSyntheticCubeFits({
+      bitpix: 16,
+      shape: [4, 3, 2],
+    });
+
+    const path = await writeTemporaryFits(fits);
+
+    const file = await FITSParser.loadFITSFile(path);
+
+    const cube = file?.primaryHDU;
+
+    expect(cube?.naxis).toBe(3);
+
+    expect(cube?.shape).toEqual([4, 3, 2]);
+
+    expect(cube?.elementCount).toBe(24);
+
+    expect(cube?.typedData).toBeInstanceOf(Int16Array);
+
+    expect(Array.from(cube?.typedData as Int16Array)).toEqual(
+      Array.from({ length: 24 }, (_, index) => index + 1),
+    );
   });
 });

@@ -22,6 +22,16 @@ export interface SyntheticAsciiTableHDUOptions {
   rows: string[];
 }
 
+export interface SyntheticCubeOptions {
+  bitpix?: 8 | 16 | 32 | 64 | -32 | -64;
+
+  shape?: [number, number, number];
+
+  pixels?: Array<number | bigint>;
+
+  headerBlocks?: number;
+}
+
 export interface SyntheticFitsOptions {
   bitpix?: 8 | 16 | 32 | 64 | -32 | -64;
 
@@ -59,6 +69,42 @@ export interface SyntheticImageHDUOptions {
   pixels?: Array<number | bigint>;
 
   headerBlocks?: number;
+}
+
+export function createSyntheticCubeFits(
+  options: SyntheticCubeOptions = {},
+): Uint8Array {
+  const { bitpix = 16, shape = [4, 3, 2], headerBlocks = 1, pixels } = options;
+
+  if (shape.length !== 3) {
+    throw new Error(
+      `Synthetic cube requires exactly 3 dimensions, got [${shape.join(", ")}]`,
+    );
+  }
+
+  const elementCount = shape.reduce((total, dimension) => total * dimension, 1);
+
+  const cubePixels =
+    pixels ??
+    Array.from(
+      {
+        length: elementCount,
+      },
+      (_, index) => index + 1,
+    );
+
+  if (cubePixels.length !== elementCount) {
+    throw new Error(
+      `Expected ${elementCount} cube elements, got ${cubePixels.length}`,
+    );
+  }
+
+  return createSyntheticFits({
+    bitpix,
+    shape,
+    headerBlocks,
+    pixels: cubePixels,
+  });
 }
 
 export function createSyntheticImageHDU(

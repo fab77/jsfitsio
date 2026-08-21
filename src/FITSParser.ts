@@ -1,7 +1,6 @@
 import { FITSWriter } from "./FITSWriter.js";
 import { ParsePayload } from "./ParsePayload.js";
 import { ParseHeader } from "./ParseHeader.js";
-// import { FITSHeader } from "./model/FITSHeader.js";
 import { FITSParsed } from "./model/FITSParsed.js";
 import { FITSHeaderManager } from "./model/FITSHeaderManager.js";
 import { FITSFile } from "./model/FITSFile.js";

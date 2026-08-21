@@ -1,0 +1,63 @@
+<!doctype html>
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+
+    <title>jsfitsio browser example</title>
+  </head>
+
+  <body>
+    <h1>jsfitsio browser example</h1>
+
+    <pre id="output">Loading FITS file...</pre>
+
+    <script src="../dist/jsfitsio.js"></script>
+
+    <script>
+      const output =
+        document.getElementById("output");
+
+      const url =
+        "https://skies.esac.esa.int/Herschel/normalized/PACS_hips160/Norder8/Dir40000/Npix47180.fits";
+
+      async function main() {
+        const fitsFile =
+          await jsfitsio.FITSParser.loadFITSFile(
+            url,
+          );
+
+        if (!fitsFile?.primaryHDU) {
+          throw new Error(
+            "Unable to load FITS file",
+          );
+        }
+
+        const image =
+          fitsFile.primaryHDU;
+
+        const lines = [
+          `BITPIX: ${image.bitpix}`,
+          `NAXIS: ${image.naxis}`,
+          `Shape: ${image.shape.join(" × ")}`,
+          `Elements: ${image.elementCount}`,
+          `TypedArray: ${
+            image.typedData?.constructor.name
+          }`,
+        ];
+
+        console.log(lines.join("\n"));
+
+        output.textContent =
+          lines.join("\n");
+      }
+
+      main().catch((error) => {
+        console.error(error);
+
+        output.textContent =
+          `Error: ${error.message}`;
+      });
+    </script>
+  </body>
+</html>
