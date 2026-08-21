@@ -1,7 +1,7 @@
 {
   "name": "jsfitsio",
   "description": "JavaScript/TypeScript library for reading and writing FITS files in Node.js and the browser.",
-  "version": "3.0.0-snapshot",
+  "version": "3.0.0",
   "keywords": [
     "fits",
     "fits-io",
