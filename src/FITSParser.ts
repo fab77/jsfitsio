@@ -22,6 +22,16 @@ import {
   FITSBinaryTableColumnType,
 } from "./model/FITSBinaryTableColumn.js";
 
+export interface FITSLoadOptions {
+  /**
+   * Compute missing DATAMIN/DATAMAX values from image payloads.
+   *
+   * Defaults to false to avoid an O(N) payload scan during parsing.
+   * Header values, when present, are always preserved.
+   */
+  computeDataMinMax?: boolean;
+}
+
 export class FITSParser {
   /**
    * @deprecated Use loadFITSFile() instead.
@@ -29,8 +39,11 @@ export class FITSParser {
    * This legacy API supports only 2-dimensional image FITS files
    * and returns the former FITSParsed structure.
    */
-  static async loadFITS(path: string): Promise<FITSParsed | null> {
-    const fitsFile = await FITSParser.loadFITSFile(path);
+  static async loadFITS(
+    path: string,
+    options: FITSLoadOptions = {},
+  ): Promise<FITSParsed | null> {
+    const fitsFile = await FITSParser.loadFITSFile(path, options);
 
     if (fitsFile === null) {
       return null;
@@ -58,17 +71,23 @@ export class FITSParser {
     };
   }
 
-  static async loadFITSFile(path: string): Promise<FITSFile | null> {
+  static async loadFITSFile(
+    path: string,
+    options: FITSLoadOptions = {},
+  ): Promise<FITSFile | null> {
     const rawData = await FITSParser.getFile(path);
 
     if (rawData.byteLength === 0) {
       return null;
     }
 
-    return FITSParser.processFITSFile(rawData);
+    return FITSParser.processFITSFile(rawData, options);
   }
 
-  private static processFITSFile(rawData: Uint8Array): FITSFile {
+  private static processFITSFile(
+    rawData: Uint8Array,
+    options: FITSLoadOptions,
+  ): FITSFile {
     const fitsFile = new FITSFile();
 
     let offset = 0;
@@ -115,6 +134,7 @@ export class FITSParser {
             dataOffset,
             dataByteLength,
             hduIndex === 0,
+            options,
           );
 
           fitsFile.addHDU(hdu);
@@ -255,9 +275,11 @@ export class FITSParser {
     dataOffset: number,
     dataByteLength: number,
     primary: boolean,
+    options: FITSLoadOptions,
   ): PrimaryHDU | ImageHDU {
-    const finalHeader =
-      ParsePayload.computePhysicalMinAndMax(header, rawPayload) ?? header;
+    const finalHeader = options.computeDataMinMax
+      ? (ParsePayload.computePhysicalMinAndMax(header, rawPayload) ?? header)
+      : header;
 
     const bitpix = ParseHeader.getFITSItemValue(
       finalHeader,

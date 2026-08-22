@@ -3,17 +3,35 @@ import { expect, test } from "@jest/globals";
 import { suppressConsoleError, suppressConsoleLog } from "./helpers/console";
 
 import { FITSParser } from "../src/FITSParser";
+import type { FITSParsed } from "../src/model/FITSParsed";
 import { FITSHeaderManager } from "../src/model/FITSHeaderManager";
 import { header, data } from "./inputs/Npix47180";
 import { startFITSFixtureServer } from "./helpers/fits-fixture-server";
-import { FITSParsed } from "../src/model/FITSParsed";
 
-test("[parse_hips_fits_1] Parse FITS from local HTTP server", async () => {
+test("[parse_hips_fits_0] does not compute missing DATAMIN/DATAMAX by default", async () => {
   const server = await startFITSFixtureServer();
 
   try {
     const parsedFITS = await FITSParser.loadFITS(
       `${server.baseUrl}/Npix47180.fits`,
+    );
+    expect(parsedFITS?.header.findById(FITSHeaderManager.DATAMIN)).toBeNull();
+
+    expect(parsedFITS?.header.findById(FITSHeaderManager.DATAMAX)).toBeNull();
+  } finally {
+    await server.close();
+  }
+}, 15000);
+
+test("[parse_hips_fits_1] Parse FITS and compute missing DATAMIN/DATAMAX", async () => {
+  const server = await startFITSFixtureServer();
+
+  try {
+    const parsedFITS = await FITSParser.loadFITS(
+      `${server.baseUrl}/Npix47180.fits`,
+      {
+        computeDataMinMax: true,
+      },
     );
 
     expect(parsedFITS).not.toBeNull();
@@ -60,7 +78,9 @@ test("[parse_hips_fits_2] Create FITS programmatically from FITSParsed", async (
 
   FITSParser.saveFITSLocally(fitsParsed, fitsFilePath);
 
-  const parsedFITS = await FITSParser.loadFITS(fitsFilePath);
+  const parsedFITS = await FITSParser.loadFITS(fitsFilePath, {
+    computeDataMinMax: true,
+  });
 
   expect(parsedFITS).not.toBeNull();
   expect(parsedFITS?.header).toBeInstanceOf(FITSHeaderManager);
@@ -71,7 +91,6 @@ test("[parse_hips_fits_2] Create FITS programmatically from FITSParsed", async (
   expect(dataLength * 4096).toBe(2097152);
 
   const dataMin = parsedFITS?.header.findById(FITSHeaderManager.DATAMIN);
-
   const dataMax = parsedFITS?.header.findById(FITSHeaderManager.DATAMAX);
 
   expect(dataMin).not.toBeNull();
@@ -86,6 +105,9 @@ test("[parse_hips_fits_3] Create local FITS from FITS loaded over local HTTP", a
   try {
     const parsedFITS = await FITSParser.loadFITS(
       `${server.baseUrl}/Npix47180.fits`,
+      {
+        computeDataMinMax: true,
+      },
     );
 
     if (parsedFITS !== null) {

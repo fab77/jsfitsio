@@ -15,6 +15,132 @@ import {
 afterEach(cleanupTemporaryFits);
 
 describe("FITSParser synthetic FITS", () => {
+  test("loadFITSFile does not compute missing DATAMIN/DATAMAX by default", async () => {
+    const fits = createSyntheticFits({
+      bitpix: 16,
+      shape: [2, 1],
+      pixels: [-10, 20],
+    });
+
+    const path = await writeTemporaryFits(fits);
+
+    const fitsFile = await FITSParser.loadFITSFile(path);
+
+    expect(fitsFile).not.toBeNull();
+
+    const primary = fitsFile?.primaryHDU;
+
+    expect(primary).not.toBeNull();
+
+    expect(primary?.header.findById(FITSHeaderManager.DATAMIN)).toBeNull();
+
+    expect(primary?.header.findById(FITSHeaderManager.DATAMAX)).toBeNull();
+  });
+
+  test("loadFITSFile computes missing DATAMIN/DATAMAX when enabled", async () => {
+    const fits = createSyntheticFits({
+      bitpix: 16,
+      shape: [2, 1],
+      pixels: [-10, 20],
+    });
+
+    const path = await writeTemporaryFits(fits);
+
+    const fitsFile = await FITSParser.loadFITSFile(path, {
+      computeDataMinMax: true,
+    });
+
+    expect(fitsFile).not.toBeNull();
+
+    const primary = fitsFile?.primaryHDU;
+
+    expect(primary).not.toBeNull();
+
+    expect(primary?.header.findById(FITSHeaderManager.DATAMIN)?.value).toBe(
+      -10,
+    );
+
+    expect(primary?.header.findById(FITSHeaderManager.DATAMAX)?.value).toBe(20);
+  });
+
+  test("loadFITSFile preserves DATAMIN/DATAMAX from the header", async () => {
+    const fits = createSyntheticFits({
+      bitpix: 16,
+      shape: [2, 1],
+      pixels: [-10, 20],
+      datamin: -100,
+      datamax: 100,
+    });
+
+    const path = await writeTemporaryFits(fits);
+
+    const fitsFile = await FITSParser.loadFITSFile(path, {
+      computeDataMinMax: true,
+    });
+
+    const primary = fitsFile?.primaryHDU;
+
+    expect(primary).not.toBeNull();
+
+    expect(primary?.header.findById(FITSHeaderManager.DATAMIN)?.value).toBe(
+      -100,
+    );
+
+    expect(primary?.header.findById(FITSHeaderManager.DATAMAX)?.value).toBe(
+      100,
+    );
+  });
+
+  test("loadFITSFile preserves existing DATAMIN and computes missing DATAMAX", async () => {
+    const fits = createSyntheticFits({
+      bitpix: 16,
+      shape: [3, 1],
+      pixels: [-10, 5, 20],
+      datamin: -100,
+    });
+
+    const path = await writeTemporaryFits(fits);
+
+    const fitsFile = await FITSParser.loadFITSFile(path, {
+      computeDataMinMax: true,
+    });
+
+    const primary = fitsFile?.primaryHDU;
+
+    expect(primary).not.toBeNull();
+
+    expect(primary?.header.findById(FITSHeaderManager.DATAMIN)?.value).toBe(
+      -100,
+    );
+
+    expect(primary?.header.findById(FITSHeaderManager.DATAMAX)?.value).toBe(20);
+  });
+
+  test("loadFITSFile computes physical range using BSCALE/BZERO and ignores BLANK", async () => {
+    const fits = createSyntheticFits({
+      bitpix: 16,
+      shape: [4, 1],
+      pixels: [-999, 1, 2, 3],
+      blank: -999,
+      bscale: 2,
+      bzero: 10,
+    });
+
+    const path = await writeTemporaryFits(fits);
+
+    const fitsFile = await FITSParser.loadFITSFile(path, {
+      computeDataMinMax: true,
+    });
+
+    const primary = fitsFile?.primaryHDU;
+
+    expect(primary).not.toBeNull();
+
+    expect(primary?.header.findById(FITSHeaderManager.DATAMIN)?.value).toBe(12);
+
+    expect(primary?.header.findById(FITSHeaderManager.DATAMAX)?.value).toBe(16);
+  });
+
   test("reads payload after a two-block header", async () => {
     const fits = createSyntheticFits({
       bitpix: 16,
@@ -25,7 +151,9 @@ describe("FITSParser synthetic FITS", () => {
 
     const path = await writeTemporaryFits(fits);
 
-    const parsed = await FITSParser.loadFITS(path);
+    const parsed = await FITSParser.loadFITS(path, {
+      computeDataMinMax: true,
+    });
 
     expect(parsed).not.toBeNull();
 
@@ -63,7 +191,9 @@ describe("FITSParser synthetic FITS", () => {
 
     const path = await writeTemporaryFits(fits);
 
-    const parsed = await FITSParser.loadFITS(path);
+    const parsed = await FITSParser.loadFITS(path, {
+      computeDataMinMax: true,
+    });
 
     expect(parsed).not.toBeNull();
 

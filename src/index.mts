@@ -15,6 +15,8 @@ export { ImageHDU } from "./model/ImageHDU.js";
 export { PrimaryHDU } from "./model/PrimaryHDU.js";
 export { BinaryTableHDU } from "./model/BinaryTableHDU.js";
 
+export type { FITSLoadOptions } from "./FITSParser.js";
+
 export type {
   FITSBinaryTableColumn,
   FITSBinaryTableColumnType,
