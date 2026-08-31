@@ -13,7 +13,12 @@ export async function getFile(uri: string) {
   // }
 
   try {
-    const response = await fetch(uri);
+    const response = await fetch(uri, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0',
+        'Accept': '*/*'
+      }
+    });
     if (response?.ok) {
       buffer = await response.arrayBuffer();
     } else {
